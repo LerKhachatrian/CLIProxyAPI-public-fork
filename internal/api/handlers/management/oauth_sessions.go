@@ -91,6 +91,35 @@ func (s *oauthSessionStore) Register(state, provider string) {
 	}
 }
 
+func (s *oauthSessionStore) RegisterBuiltin(state, provider string, metadata map[string]any) error {
+	state = strings.TrimSpace(state)
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if state == "" || provider == "" {
+		return fmt.Errorf("%w: empty state or provider", errInvalidOAuthState)
+	}
+	if errState := ValidateOAuthState(state); errState != nil {
+		return errState
+	}
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.purgeExpiredLocked(now)
+	if _, ok := s.sessions[state]; ok {
+		return errOAuthSessionExists
+	}
+	s.sessions[state] = oauthSession{
+		Provider:  provider,
+		Status:    "",
+		Source:    oauthSessionSourceBuiltin,
+		Metadata:  cloneOAuthSessionMetadata(metadata),
+		CreatedAt: now,
+		ExpiresAt: now.Add(s.ttl),
+	}
+	return nil
+}
+
 func (s *oauthSessionStore) RegisterPlugin(state, provider string, metadata map[string]any) error {
 	state = strings.TrimSpace(state)
 	provider = strings.ToLower(strings.TrimSpace(provider))
@@ -142,6 +171,34 @@ func (s *oauthSessionStore) SetError(state, message string) {
 	session.Status = message
 	session.ExpiresAt = now.Add(s.ttl)
 	s.sessions[state] = session
+}
+
+func (s *oauthSessionStore) CompleteWithMetadata(state string, metadata map[string]any) bool {
+	state = strings.TrimSpace(state)
+	if state == "" {
+		return false
+	}
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.purgeExpiredLocked(now)
+	session, ok := s.sessions[state]
+	if !ok || session.Completed {
+		return false
+	}
+	if session.Metadata == nil {
+		session.Metadata = make(map[string]any)
+	}
+	for key, value := range metadata {
+		session.Metadata[key] = value
+	}
+	session.Status = ""
+	session.Completed = true
+	session.ExpiresAt = now.Add(s.completedTTL)
+	s.sessions[state] = session
+	return true
 }
 
 func (s *oauthSessionStore) Complete(state string) {
@@ -263,6 +320,10 @@ var oauthSessions = newOAuthSessionStore(oauthSessionTTL)
 
 func RegisterOAuthSession(state, provider string) { oauthSessions.Register(state, provider) }
 
+func RegisterOAuthSessionWithMetadata(state, provider string, metadata map[string]any) error {
+	return oauthSessions.RegisterBuiltin(state, provider, metadata)
+}
+
 func RegisterPluginOAuthSession(state, provider string, metadata map[string]any) error {
 	return oauthSessions.RegisterPlugin(state, provider, metadata)
 }
@@ -270,6 +331,10 @@ func RegisterPluginOAuthSession(state, provider string, metadata map[string]any)
 func SetOAuthSessionError(state, message string) { oauthSessions.SetError(state, message) }
 
 func CompleteOAuthSession(state string) { oauthSessions.Complete(state) }
+
+func CompleteOAuthSessionWithMetadata(state string, metadata map[string]any) bool {
+	return oauthSessions.CompleteWithMetadata(state, metadata)
+}
 
 func CompleteOAuthSessionsByProvider(provider string) int {
 	return oauthSessions.CompleteProvider(provider, oauthSessionSourceBuiltin)

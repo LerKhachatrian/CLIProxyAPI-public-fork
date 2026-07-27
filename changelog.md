@@ -1,0 +1,9 @@
+# Changelog
+
+## 2026-07-26 21:21:40 -04:00
+
+- Session ID: `019f6030-9134-7491-8937-4b0039ecc695`
+- Added targeted Codex OAuth reauthentication to the existing management flow. `GET /codex-auth-url?auth_index=...` now resolves exactly one supported file-backed Codex OAuth record, binds the OAuth session to that runtime target, and reports durable targeted completion through `GET /get-auth-status` without exposing credential material.
+- The callback path re-resolves the target before persistence, verifies the returned account ID or email matches the existing account, preserves allowed operator metadata and runtime attributes, updates only that record, and fails closed with zero mutation for wrong-account, missing, ambiguous, unsupported, changed, or unverifiable targets. Targeted completion does not consume concurrent generic Codex OAuth sessions.
+- Verification passed: `gofmt`; the focused targeted-reauthentication suite covering matching-account replacement, wrong-account zero mutation, metadata preservation, target validation, and concurrent-session safety; a clean server build producing SHA-256 `ac6ab622b0dfd0f2c88d4d719bace9537245ff80d684bef4afe714a69c7a3aca`; staging on `48318`; approved live cutover to `48317`; protected-endpoint `401`; rollback artifact SHA-256 `471c8e9520f56f23c826cdf334877afd7261bbb7022e8515f8149c0eda4d6f72`; and post-reboot confirmation that the same new binary owns `48317`. Config and launcher hashes remained unchanged and rollback was not needed.
+- The broader upstream `go test ./...` run still reports pre-existing failures in plugin install-path, pluginhost snapshot, reasoning replay, and translator compatibility tests outside this change. The changed management package and production server build pass. No real OAuth login was performed and no live auth file was read or mutated.

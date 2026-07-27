@@ -196,6 +196,20 @@ func (h *Handler) RequestAnthropicToken(c *gin.Context) {
 func (h *Handler) RequestCodexToken(c *gin.Context) {
 	ctx := context.Background()
 	ctx = PopulateAuthContext(ctx, c)
+	var reauthTarget *codexReauthTarget
+	if rawAuthIndex, targeted := c.GetQuery("auth_index"); targeted {
+		authIndex := strings.TrimSpace(rawAuthIndex)
+		if authIndex == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "auth_index is required"})
+			return
+		}
+		var errTarget error
+		reauthTarget, errTarget = h.resolveCodexReauthTarget(authIndex)
+		if errTarget != nil {
+			writeCodexReauthTargetError(c, errTarget)
+			return
+		}
+	}
 
 	fmt.Println("Initializing Codex authentication...")
 
@@ -226,19 +240,32 @@ func (h *Handler) RequestCodexToken(c *gin.Context) {
 		return
 	}
 
-	RegisterOAuthSession(state, "codex")
+	if reauthTarget != nil {
+		if errRegister := RegisterOAuthSessionWithMetadata(state, "codex", map[string]any{
+			"targeted_reauth": true,
+			"auth_index":      reauthTarget.authIndex,
+		}); errRegister != nil {
+			log.WithError(errRegister).Error("failed to register targeted codex oauth session")
+			c.JSON(http.StatusConflict, gin.H{"status": "error", "error": "OAuth session could not be started"})
+			return
+		}
+	} else {
+		RegisterOAuthSession(state, "codex")
+	}
 
 	isWebUI := isWebUIRequest(c)
 	var forwarder *callbackForwarder
 	if isWebUI {
 		targetURL, errTarget := h.managementCallbackURL("/codex/callback")
 		if errTarget != nil {
+			CompleteOAuthSession(state)
 			log.WithError(errTarget).Error("failed to compute codex callback target")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "callback server unavailable"})
 			return
 		}
 		var errStart error
 		if forwarder, errStart = startCallbackForwarder(codexCallbackPort, "codex", targetURL); errStart != nil {
+			CompleteOAuthSession(state)
 			log.WithError(errStart).Error("failed to start codex callback forwarder")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start callback server"})
 			return
@@ -308,18 +335,43 @@ func (h *Handler) RequestCodexToken(c *gin.Context) {
 			}
 		}
 
-		// Create token storage and persist
+		// Create token storage and persist.
 		tokenStorage := openaiAuth.CreateTokenStorage(bundle)
-		fileName := codex.CredentialFileName(tokenStorage.Email, planType, hashAccountID, true)
-		record := &coreauth.Auth{
-			ID:       fileName,
-			Provider: "codex",
-			FileName: fileName,
-			Storage:  tokenStorage,
-			Metadata: map[string]any{
-				"email":      tokenStorage.Email,
-				"account_id": tokenStorage.AccountID,
-			},
+		var record *coreauth.Auth
+		if reauthTarget != nil {
+			currentTarget, errTarget := h.resolveCodexReauthTarget(reauthTarget.authIndex)
+			if errTarget != nil || currentTarget.id != reauthTarget.id || !sameAuthFilePath(currentTarget.path, reauthTarget.path) {
+				SetOAuthSessionError(state, "Selected account changed. Nothing changed.")
+				log.WithError(errTarget).Warn("targeted codex oauth account changed before persistence")
+				return
+			}
+			switch errIdentity := currentTarget.verifyIdentity(tokenStorage); {
+			case errors.Is(errIdentity, errCodexReauthIdentityMismatch):
+				SetOAuthSessionError(state, "Signed into a different account. Nothing changed.")
+				log.Warn("targeted codex oauth account mismatch; credentials were not saved")
+				return
+			case errors.Is(errIdentity, errCodexReauthIdentityUnknown):
+				SetOAuthSessionError(state, "Could not verify the signed-in account. Nothing changed.")
+				log.Warn("targeted codex oauth identity could not be verified; credentials were not saved")
+				return
+			case errIdentity != nil:
+				SetOAuthSessionError(state, "Could not verify the signed-in account. Nothing changed.")
+				log.WithError(errIdentity).Warn("targeted codex oauth identity verification failed")
+				return
+			}
+			record = currentTarget.buildRecord(tokenStorage)
+		} else {
+			fileName := codex.CredentialFileName(tokenStorage.Email, planType, hashAccountID, true)
+			record = &coreauth.Auth{
+				ID:       fileName,
+				Provider: "codex",
+				FileName: fileName,
+				Storage:  tokenStorage,
+				Metadata: map[string]any{
+					"email":      tokenStorage.Email,
+					"account_id": tokenStorage.AccountID,
+				},
+			}
 		}
 		if errGuard := guardOAuthSessionPendingForSave(state, "codex"); errGuard != nil {
 			return
@@ -330,12 +382,23 @@ func (h *Handler) RequestCodexToken(c *gin.Context) {
 			log.Errorf("Failed to save authentication tokens: %v", errSave)
 			return
 		}
+		if reauthTarget != nil {
+			if errUpdate := h.updateCodexReauthRuntime(ctx, record); errUpdate != nil {
+				SetOAuthSessionError(state, "Credentials were saved, but CLIProxy could not reload the account.")
+				log.WithError(errUpdate).Error("failed to update targeted codex oauth runtime state")
+				return
+			}
+		}
 		fmt.Printf("Authentication successful! Token saved to %s\n", savedPath)
 		if bundle.APIKey != "" {
 			fmt.Println("API key obtained and saved")
 		}
 		fmt.Println("You can now use Codex services through this CLI")
-		CompleteOAuthSession(state)
+		if reauthTarget != nil {
+			CompleteOAuthSessionWithMetadata(state, map[string]any{"reauthenticated": true})
+		} else {
+			CompleteOAuthSession(state)
+		}
 	}()
 
 	c.JSON(200, gin.H{"status": "ok", "url": authURL, "state": state})
@@ -771,7 +834,11 @@ func (h *Handler) GetAuthStatus(c *gin.Context) {
 		return
 	}
 	if completed {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		payload := gin.H{"status": "ok"}
+		if targeted, _ := metadata["targeted_reauth"].(bool); targeted {
+			payload["result"] = "reconnected"
+		}
+		c.JSON(http.StatusOK, payload)
 		return
 	}
 	if status != "" {

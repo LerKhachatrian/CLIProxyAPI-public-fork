@@ -33,6 +33,7 @@ type oauthSession struct {
 	Status    string
 	Source    string
 	Metadata  map[string]any
+	Completed bool
 	CreatedAt time.Time
 	ExpiresAt time.Time
 }
@@ -80,6 +81,35 @@ func (s *oauthSessionStore) Register(state, provider string) {
 		CreatedAt: now,
 		ExpiresAt: now.Add(s.ttl),
 	}
+}
+
+func (s *oauthSessionStore) RegisterBuiltin(state, provider string, metadata map[string]any) error {
+	state = strings.TrimSpace(state)
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if state == "" || provider == "" {
+		return fmt.Errorf("%w: empty state or provider", errInvalidOAuthState)
+	}
+	if errState := ValidateOAuthState(state); errState != nil {
+		return errState
+	}
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.purgeExpiredLocked(now)
+	if _, ok := s.sessions[state]; ok {
+		return errOAuthSessionExists
+	}
+	s.sessions[state] = oauthSession{
+		Provider:  provider,
+		Status:    "",
+		Source:    oauthSessionSourceBuiltin,
+		Metadata:  cloneOAuthSessionMetadata(metadata),
+		CreatedAt: now,
+		ExpiresAt: now.Add(s.ttl),
+	}
+	return nil
 }
 
 func (s *oauthSessionStore) RegisterPlugin(state, provider string, metadata map[string]any) error {
@@ -131,8 +161,37 @@ func (s *oauthSessionStore) SetError(state, message string) {
 		return
 	}
 	session.Status = message
+	session.Completed = false
 	session.ExpiresAt = now.Add(s.ttl)
 	s.sessions[state] = session
+}
+
+func (s *oauthSessionStore) CompleteWithMetadata(state string, metadata map[string]any) bool {
+	state = strings.TrimSpace(state)
+	if state == "" {
+		return false
+	}
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.purgeExpiredLocked(now)
+	session, ok := s.sessions[state]
+	if !ok {
+		return false
+	}
+	if session.Metadata == nil {
+		session.Metadata = make(map[string]any)
+	}
+	for key, value := range metadata {
+		session.Metadata[key] = value
+	}
+	session.Status = ""
+	session.Completed = true
+	session.ExpiresAt = now.Add(s.ttl)
+	s.sessions[state] = session
+	return true
 }
 
 func (s *oauthSessionStore) Complete(state string) {
@@ -197,7 +256,7 @@ func (s *oauthSessionStore) IsPending(state, provider string) bool {
 	if !ok {
 		return false
 	}
-	if session.Status != "" {
+	if session.Status != "" || session.Completed {
 		return false
 	}
 	if provider == "" {
@@ -221,6 +280,10 @@ var oauthSessions = newOAuthSessionStore(oauthSessionTTL)
 
 func RegisterOAuthSession(state, provider string) { oauthSessions.Register(state, provider) }
 
+func RegisterOAuthSessionWithMetadata(state, provider string, metadata map[string]any) error {
+	return oauthSessions.RegisterBuiltin(state, provider, metadata)
+}
+
 func RegisterPluginOAuthSession(state, provider string, metadata map[string]any) error {
 	return oauthSessions.RegisterPlugin(state, provider, metadata)
 }
@@ -228,6 +291,10 @@ func RegisterPluginOAuthSession(state, provider string, metadata map[string]any)
 func SetOAuthSessionError(state, message string) { oauthSessions.SetError(state, message) }
 
 func CompleteOAuthSession(state string) { oauthSessions.Complete(state) }
+
+func CompleteOAuthSessionWithMetadata(state string, metadata map[string]any) bool {
+	return oauthSessions.CompleteWithMetadata(state, metadata)
+}
 
 func CompleteOAuthSessionsByProvider(provider string) int {
 	return oauthSessions.CompleteProvider(provider, oauthSessionSourceBuiltin)
@@ -251,6 +318,14 @@ func GetOAuthSessionDetails(state string) (provider string, status string, isPlu
 		return "", "", false, nil, false
 	}
 	return session.Provider, session.Status, session.Source == oauthSessionSourcePlugin, cloneOAuthSessionMetadata(session.Metadata), true
+}
+
+func GetOAuthSessionDetailsWithCompletion(state string) (provider string, status string, isPlugin bool, metadata map[string]any, completed bool, ok bool) {
+	session, ok := oauthSessions.Get(state)
+	if !ok {
+		return "", "", false, nil, false, false
+	}
+	return session.Provider, session.Status, session.Source == oauthSessionSourcePlugin, cloneOAuthSessionMetadata(session.Metadata), session.Completed, true
 }
 
 func IsOAuthSessionPending(state, provider string) bool {

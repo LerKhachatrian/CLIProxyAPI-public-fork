@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-18 10:41:30 -04:00
+
+- Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`
+- Refreshed the public fork topology to exact official upstream `ee2c494788f8a089c58f7ae9aa6ebd1b422211cb` (`v7.2.135`): `ler-public-fork/main` is now a clean fast-forwarded upstream mirror, while `codex/upstream-main-fast-support` carries Ler's isolated customization stack. Preserved the deployed pre-refresh source as pushed tag `ler-live-2026-08-18-pre-upstream-sync` at `beec3e4945558bc14db4a593f89c74a901284bac` with live binary SHA-256 `ac6ab622b0dfd0f2c88d4d719bace9537245ff80d684bef4afe714a69c7a3aca`.
+- Ported targeted Codex account reauthentication onto the new upstream architecture as commit `c96f76e746a86b2dbf6c12e4c2d784e422f128c8`, preserving upstream's completed-session TTL behavior and the fail-closed, metadata-preserving targeted-account contract.
+- Added GPT-5.6 Fast-mode compatibility as commit `57ac1f81ffccb677282ff30fa610b1d6ed1c7446`: Sol, Sol-Ultrafast, Terra, and Luna advertise `priority` / `Fast`; unsupported synthesized models remain Fast-disabled; client `service_tier: "fast"` normalizes to upstream `"priority"`; literal `"priority"` is preserved; and Standard, auto, or unknown tiers are omitted. Added focused Go tests, a localhost-only staging verifier, and `docs/ler-fork-maintenance.md` as the durable synchronization, staging, deployment, and rollback contract.
+- Verification passed: `gofmt`; `go test ./internal/client/codex/models ./internal/translator/codex/openai/responses ./internal/api/handlers/management`; production server build with Go `1.26.2`; and `test/fast_mode_staging.ps1` against exact committed candidate `57ac1f81` on isolated ports `48318` and `48319`. The candidate SHA-256 is `2d33b604474d533f4f4d23ac9c72420178281e569313bd6df419e4923d49ee65`. The real `/v1/models?client_version=...` response advertised Fast for all four supported models and none for the unsupported control; captured upstream requests proved `fast -> priority`, `priority -> priority`, and Standard tier omission. Teardown verification left only protected live port `48317` listening.
+- The complete `go test ./...` run still reports latest-upstream Windows/environment failures outside this customization diff: three Claude fingerprint expectations in `internal/runtime/executor`, Windows `.git` rename access-denied cases in `internal/store`, and stale reviewed-in-place-write invariant entries in `internal/util`. All changed packages, the management customization, the production build, and the binary-level acceptance workflow pass.
+- Live port `48317` remained untouched at PID `40132`; no live configuration, auth JSON, profile database, SSH route, Scheduled Task, App Server socket, or Remote Control identity was read or changed. Production promotion remains behind the documented action-time approval gate.
+
 ## 2026-07-26 21:21:40 -04:00
 
 - Session ID: `019f6030-9134-7491-8937-4b0039ecc695`

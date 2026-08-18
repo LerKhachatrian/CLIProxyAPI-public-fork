@@ -239,6 +239,35 @@ func TestConvertOpenAIResponsesRequestToCodexReusesNormalizedPayload(t *testing.
 	}
 }
 
+func TestConvertOpenAIResponsesRequestToCodexNormalizesServiceTier(t *testing.T) {
+	tests := []struct {
+		name       string
+		inputTier  string
+		wantTier   string
+		wantExists bool
+	}{
+		{name: "fast becomes priority", inputTier: "fast", wantTier: "priority", wantExists: true},
+		{name: "priority remains priority", inputTier: "priority", wantTier: "priority", wantExists: true},
+		{name: "default is omitted", inputTier: "default", wantExists: false},
+		{name: "auto is omitted", inputTier: "auto", wantExists: false},
+		{name: "unsupported is omitted", inputTier: "unsupported", wantExists: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJSON := []byte(`{"model":"gpt-5.6-sol","service_tier":"` + tt.inputTier + `","input":"hello"}`)
+			output := ConvertOpenAIResponsesRequestToCodex("gpt-5.6-sol", inputJSON, true)
+			serviceTier := gjson.GetBytes(output, "service_tier")
+			if serviceTier.Exists() != tt.wantExists {
+				t.Fatalf("service_tier exists = %v, want %v; output: %s", serviceTier.Exists(), tt.wantExists, output)
+			}
+			if tt.wantExists && serviceTier.String() != tt.wantTier {
+				t.Fatalf("service_tier = %q, want %q; output: %s", serviceTier.String(), tt.wantTier, output)
+			}
+		})
+	}
+}
+
 func TestConvertOpenAIResponsesRequestToCodexNormalizesRequiredFields(t *testing.T) {
 	inputJSON := []byte(`{
 		"model":"gpt-5.6",

@@ -47,6 +47,13 @@ var codexClientLegacyAllowedReasoningLevels = map[string]struct{}{
 	"xhigh":   {},
 }
 
+var codexClientFastTierModelIDs = map[string]struct{}{
+	"gpt-5.6-sol":           {},
+	"gpt-5.6-sol-ultrafast": {},
+	"gpt-5.6-terra":         {},
+	"gpt-5.6-luna":          {},
+}
+
 // BuildResponse builds a Codex client model response from available models.
 func BuildResponse(availableModels []map[string]any, providersForModel ProvidersForModelFunc, optimizeMultiAgentV2 bool) map[string]any {
 	return BuildResponseForClient(availableModels, providersForModel, optimizeMultiAgentV2, "")
@@ -75,6 +82,7 @@ func buildCodexClientModels(models []map[string]any, providersForModel Providers
 
 		if template, ok := templates[id]; ok {
 			entry := cloneCodexClientModelMap(template)
+			applyCodexClientServiceTierMetadata(entry, id, true)
 			applyCodexClientDisplayName(entry, model)
 			applyCodexClientMaxContextLengthOverride(entry, model)
 			applyCodexClientMaxTokens(entry, model)
@@ -290,7 +298,7 @@ func applyCodexClientModelMetadata(entry map[string]any, id string, model map[st
 	if optimizeMultiAgentV2 {
 		entry["multi_agent_version"] = "v2"
 	}
-	entry["service_tiers"] = []any{}
+	applyCodexClientServiceTierMetadata(entry, id, false)
 	delete(entry, "apply_patch_tool_type")
 	delete(entry, "upgrade")
 	delete(entry, "availability_nux")
@@ -306,6 +314,26 @@ func applyCodexClientModelMetadata(entry map[string]any, id string, model map[st
 	if plans, ok := model["available_in_plans"]; ok {
 		entry["available_in_plans"] = cloneCodexClientModelValue(plans)
 	}
+}
+
+func applyCodexClientServiceTierMetadata(entry map[string]any, id string, preserveUnsupported bool) {
+	if entry == nil {
+		return
+	}
+	if _, ok := codexClientFastTierModelIDs[strings.TrimSpace(id)]; ok {
+		entry["service_tiers"] = []any{map[string]any{
+			"id":          "priority",
+			"name":        "Fast",
+			"description": "1.5x speed, increased usage",
+		}}
+		entry["additional_speed_tiers"] = []any{"fast"}
+		return
+	}
+	if preserveUnsupported {
+		return
+	}
+	entry["service_tiers"] = []any{}
+	entry["additional_speed_tiers"] = []any{}
 }
 
 func applyCodexClientVisibilityOverride(entry map[string]any, id string) {

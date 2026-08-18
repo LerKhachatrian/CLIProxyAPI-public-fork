@@ -190,6 +190,85 @@ func TestCodexClientModelsResponse_DisablesSearchToolForSynthesizedModels(t *tes
 	}
 }
 
+func TestCodexClientModelsResponseAdvertisesFastForSupportedGPT56Models(t *testing.T) {
+	modelIDs := []string{
+		"gpt-5.6-sol",
+		"gpt-5.6-sol-ultrafast",
+		"gpt-5.6-terra",
+		"gpt-5.6-luna",
+		"custom-openai-compatible-model",
+	}
+	availableModels := make([]map[string]any, 0, len(modelIDs))
+	for _, id := range modelIDs {
+		availableModels = append(availableModels, map[string]any{"id": id})
+	}
+
+	resp := BuildResponse(availableModels, nil, false)
+	models, ok := resp["models"].([]map[string]any)
+	if !ok {
+		t.Fatalf("models type = %T, want []map[string]any", resp["models"])
+	}
+	bySlug := make(map[string]map[string]any, len(models))
+	for _, model := range models {
+		bySlug[stringModelValue(model, "slug")] = model
+	}
+
+	for _, id := range modelIDs[:4] {
+		model := bySlug[id]
+		if model == nil {
+			t.Fatalf("expected model entry for %s", id)
+		}
+		tiers, okTiers := model["service_tiers"].([]any)
+		if !okTiers || len(tiers) != 1 {
+			t.Fatalf("%s service_tiers = %#v, want one tier", id, model["service_tiers"])
+		}
+		tier, okTier := tiers[0].(map[string]any)
+		if !okTier || stringModelValue(tier, "id") != "priority" || stringModelValue(tier, "name") != "Fast" {
+			t.Fatalf("%s service tier = %#v, want priority/Fast", id, tiers[0])
+		}
+		speedTiers, okSpeed := model["additional_speed_tiers"].([]any)
+		if !okSpeed || len(speedTiers) != 1 || speedTiers[0] != "fast" {
+			t.Fatalf("%s additional_speed_tiers = %#v, want [fast]", id, model["additional_speed_tiers"])
+		}
+	}
+
+	custom := bySlug["custom-openai-compatible-model"]
+	if custom == nil {
+		t.Fatal("expected synthesized custom model entry")
+	}
+	if tiers, okTiers := custom["service_tiers"].([]any); !okTiers || len(tiers) != 0 {
+		t.Fatalf("custom service_tiers = %#v, want empty", custom["service_tiers"])
+	}
+	if speedTiers, okSpeed := custom["additional_speed_tiers"].([]any); !okSpeed || len(speedTiers) != 0 {
+		t.Fatalf("custom additional_speed_tiers = %#v, want empty", custom["additional_speed_tiers"])
+	}
+}
+
+func TestApplyCodexClientServiceTierMetadataPreservesUnsupportedTemplates(t *testing.T) {
+	existingTiers := []any{map[string]any{"id": "priority", "name": "Fast"}}
+	existingSpeedTiers := []any{"fast"}
+	entry := map[string]any{
+		"service_tiers":          existingTiers,
+		"additional_speed_tiers": existingSpeedTiers,
+	}
+
+	applyCodexClientServiceTierMetadata(entry, "gpt-5.5", true)
+	if tiers, ok := entry["service_tiers"].([]any); !ok || len(tiers) != 1 || stringModelValue(tiers[0].(map[string]any), "id") != "priority" {
+		t.Fatalf("template service_tiers = %#v, want preserved priority tier", entry["service_tiers"])
+	}
+	if speedTiers, ok := entry["additional_speed_tiers"].([]any); !ok || len(speedTiers) != 1 || speedTiers[0] != "fast" {
+		t.Fatalf("template additional_speed_tiers = %#v, want preserved [fast]", entry["additional_speed_tiers"])
+	}
+
+	applyCodexClientServiceTierMetadata(entry, "custom-openai-compatible-model", false)
+	if tiers, ok := entry["service_tiers"].([]any); !ok || len(tiers) != 0 {
+		t.Fatalf("synthesized service_tiers = %#v, want empty", entry["service_tiers"])
+	}
+	if speedTiers, ok := entry["additional_speed_tiers"].([]any); !ok || len(speedTiers) != 0 {
+		t.Fatalf("synthesized additional_speed_tiers = %#v, want empty", entry["additional_speed_tiers"])
+	}
+}
+
 func TestCodexClientModelsResponse_RequiresTemplateAndCodexProvidersForSearchTool(t *testing.T) {
 	providers := map[string][]string{
 		"new-codex-model": {"codex"},

@@ -56,3 +56,12 @@ go build -o test-output ./cmd/server && rm test-output # Verify compile (REQUIRE
 - Use logrus structured logging; avoid leaking secrets/tokens in logs
 - Avoid panics in HTTP handlers; prefer logged errors and meaningful HTTP status codes
 - Timeouts are allowed only during credential acquisition; after an upstream connection is established, do not set timeouts for any subsequent network behavior. Intentional exceptions that must remain allowed are the Codex websocket liveness deadlines in `internal/runtime/executor/codex_websockets_executor.go`, the wsrelay session deadlines in `internal/wsrelay/session.go`, the management APICall timeout in `internal/api/handlers/management/api_tools.go`, and the `cmd/fetch_antigravity_models` utility timeouts
+
+## Ler fork maintenance
+
+- Read `docs/ler-fork-maintenance.md` before upstream synchronization, custom feature work, staging, deployment, or rollback.
+- Treat `origin` as the official upstream source and `ler-public-fork` as the writable fork. Never push custom commits to `origin`.
+- Keep fork customizations as small, independently tested commits on a dedicated integration branch based on an exact upstream SHA.
+- Before every upstream refresh, preserve the currently deployed source commit, binary SHA-256, and rollback artifact.
+- Validate candidate binaries on staging port `48318`; port `48317` is protected and requires action-time approval before restart or replacement.
+- Completed fork implementations must be committed, pushed to `ler-public-fork`, documented, and leave `git status --porcelain` empty.

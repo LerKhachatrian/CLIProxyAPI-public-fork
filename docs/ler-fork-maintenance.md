@@ -74,11 +74,46 @@ Do not attempt to solve this through Codex Desktop binaries, SSH dispatchers, Sc
 
 Validation must prove behavior from the model-list response through the translated outbound Codex request. UI visibility alone is insufficient.
 
+## Official Fast-mode contract
+
+As of 2026-08-23, the official OpenAI documentation states that Fast mode is available in the ChatGPT desktop app and supports GPT-5.6. Codex CLI persists the choice as `service_tier = "fast"` with `[features].fast_mode = true`. CLIProxyAPI must therefore expose compatible model metadata to Desktop and translate the client-facing `fast` tier to the provider-facing `priority` tier without changing Standard requests.
+
+Source: [Speed | ChatGPT Learn](https://learn.chatgpt.com/docs/agent-configuration/speed)
+
+Re-fetch the official page before future compatibility work because supported models, credit multipliers, and client behavior can change independently of this fork.
+
+## Hash-locked live cutover
+
+Use `scripts/deploy-live-router.ps1` for live promotion. It has two explicit modes:
+
+- `-PreflightOnly` is read-only. It verifies the candidate, current live binary, rollback binary, exact port owner, executable path, and loopback health endpoint.
+- `-Execute` performs the cutover and is allowed only after an impact warning and action-time approval for protected port `48317`.
+
+The execute path handles the existing launcher race without changing SSH, Codex Desktop, Scheduled Tasks, App Servers, or launcher scripts:
+
+1. Verify all expected SHA-256 values and current listener ownership.
+2. Copy the candidate to a unique file beside the canonical executable.
+3. Rename the still-running old executable aside and atomically place the candidate at the canonical path. If either rename fails, restore the old pathname before stopping anything.
+4. Stop only the verified old PID.
+5. Briefly allow an existing CLIProxy launcher to respawn the canonical candidate; otherwise start it directly.
+6. Require a new PID, the canonical candidate hash, exact executable ownership, and HTTP health.
+7. On any post-swap failure, stop only the verified canonical-path process, restore the old hash, restart it, and require restored health before reporting failure.
+
+The rollback binary must exist and match the expected old live hash before preflight can report ready. The script never reads or prints live configuration or authentication contents; it receives the config pathname only as a process argument.
+
+Prove changes to this mechanism with `test/live_router_cutover_staging.ps1`. The harness uses disposable loopback ports and synthetic configuration to exercise both:
+
+- a competing external respawner winning the restart race;
+- a deliberately invalid candidate causing automatic rollback to the baseline hash and healthy service.
+
+After a successful live cutover, verify `/fast` in a fresh Codex Desktop thread in a CLIProxy workspace. Refresh only the affected CLIProxy App Server connections if Desktop retains stale model metadata; restart the full Desktop app only as a final fallback.
+
 ## Deployment safety
 
 - Staging port: `48318`.
 - Protected live port: `48317`.
 - Never restart or replace the live router without an explicit impact warning and action-time approval.
+- Run the hash-locked preflight immediately before requesting that approval, then do not rebuild, replace, or rename the approved candidate before execution.
 - Prefer a non-disruptive model refresh after deployment. Restart CLIProxy App Servers only if cache evidence requires it and approval covers that interruption.
 - Do not read or print token-bearing auth files, management keys, cookies, provider credentials, or live `config.yaml` contents.
 - Do not modify SSH routes, App Server sockets, Scheduled Tasks, profile histories, SQLite state, or Remote Control identities for provider metadata changes.

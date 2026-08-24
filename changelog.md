@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-23 20:07:23 -04:00
+
+- Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`
+- Fetched official upstream through `a7e3596b7e351d800e58ed29529fbca3d1c18737` (`v7.2.140`) and merged its 54 post-`ee2c4947` commits into `codex/upstream-main-fast-support` as merge commit `5943876a`. The merge preserved both custom behaviors: targeted Codex reauthentication and GPT-5.6 Fast metadata/request normalization, including upstream's new `prompt_cache_retention` filtering.
+- Re-fetched the official OpenAI Fast-mode contract from `https://learn.chatgpt.com/docs/agent-configuration/speed`: Fast is supported in Codex Desktop and GPT-5.6, while the CLI persists `service_tier = "fast"` with the Fast feature enabled. Updated `docs/ler-fork-maintenance.md` with the source and compatibility implications.
+- Added hash-locked live promotion tooling in commit `3579f13fe1f540c1b0e22803b6d42a9aab6cc62f`: `scripts/deploy-live-router.ps1` provides read-only preflight plus explicit execute modes, verifies exact binary hashes/listener ownership/health, swaps the canonical executable before stopping the old PID to neutralize launcher races, and automatically restores the old hash and health on failure. `test/live_router_cutover_staging.ps1` is a disposable synthetic-config harness for the competing-respawner and rollback paths.
+- Built the immutable clean candidate `C:\Users\lerkh\.codex\cliproxy\codex-router\bin\cliproxyapi.fast-3579f13f.prepared-20260823.exe` with Go `1.26.2`, embedded VCS revision `3579f13fe1f540c1b0e22803b6d42a9aab6cc62f`, `vcs.modified=false`, and SHA-256 `340557d0b13a35480b32ac77c622d3ca75665ff180e09191b533e37ddea4938d`.
+- Verification passed: focused model/translator/management tests; production server build; binary Fast E2E on isolated ports `48318`/`48319` for all four GPT-5.6 models, unsupported-model exclusion, `fast -> priority`, literal `priority`, and Standard omission; and cutover E2E on `48320`/`48321`, including an external respawner winning the race and a deliberately invalid candidate restoring the baseline hash and healthy service. All disposable listeners were removed.
+- The complete `go test -count=1 ./...` run remains blocked only by upstream Windows/environment failures outside the custom delta: three MacOS-vs-Windows Claude fingerprint expectations in `internal/runtime/executor`, Windows temp `.git` rename access-denied cases in `internal/store`, and two stale reviewed-in-place-write entries in `internal/util`. All changed packages and translator surfaces pass.
+- Final live `-PreflightOnly` passed against PID `13596`: current live SHA-256 remains `ac6ab622b0dfd0f2c88d4d719bace9537245ff80d684bef4afe714a69c7a3aca`, rollback matches that hash, candidate matches its approved hash, and `http://127.0.0.1:48317/healthz` returned healthy. No live executable, router process, SSH route, App Server, Desktop process, Scheduled Task, config/auth content, or Remote Control state was changed. The sole remaining action is the explicitly approved `-Execute` cutover, which will briefly reconnect CLIProxy-backed threads.
+
 ## 2026-08-18 10:41:30 -04:00
 
 - Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`

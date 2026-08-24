@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-24 13:58:48 -04:00
+
+- Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`
+- After Ler opened an explicit post-reboot maintenance window, the final hash-locked preflight passed against old live PID `12352`, live/rollback SHA-256 `ac6ab622b0dfd0f2c88d4d719bace9537245ff80d684bef4afe714a69c7a3aca`, and candidate SHA-256 `340557d0b13a35480b32ac77c622d3ca75665ff180e09191b533e37ddea4938d`.
+- Executed `scripts/deploy-live-router.ps1 -Execute`. The cutover completed without rollback: old PID `12352` stopped, new PID `52672` owns `127.0.0.1:48317`, the canonical live binary now matches candidate source commit `3579f13fe1f540c1b0e22803b6d42a9aab6cc62f`, HTTP health is 200, and the preserved rollback binary still matches the old hash. No SSH, Desktop, App Server, Scheduled Task, launcher, config, auth, profile database, or Remote Control state was changed.
+- Live model-catalog verification through the already-present CLIProxy environment credential confirmed `priority` / `Fast` plus `additional_speed_tiers: [fast]` for exposed GPT-5.6 Sol, Terra, and Luna. Sol-Ultrafast is not currently exposed by the live provider and was correctly omitted under the conditional acceptance rule. A minimal real `service_tier: fast` GPT-5.6 Sol request completed successfully; its response echoed `default`, which is not used as translation evidence because the isolated capture E2E already proved the outbound request is normalized to `priority`.
+- Tagged the exact deployed source as `ler-live-2026-08-24-gpt56-fast-v7.2.140`. Updated the canonical app-catalog manifest to replace its stale 2026-06 deployment provenance with the current integration source, live hash, deployment time, and rollback artifact.
+- Remaining user-facing acceptance: open a fresh Codex Desktop thread in a CLIProxy workspace and confirm `/fast` appears and toggles. The live model metadata required for that discovery is verified.
+
 ## 2026-08-23 20:07:23 -04:00
 
 - Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`

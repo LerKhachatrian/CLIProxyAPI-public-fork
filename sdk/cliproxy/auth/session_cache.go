@@ -24,6 +24,29 @@ type SessionCache struct {
 	stopOnce sync.Once
 }
 
+// Len returns the number of cached session keys. One logical session may own
+// more than one key when the selector retains stable aliases.
+func (c *SessionCache) Len() int {
+	if c == nil {
+		return 0
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.entries)
+}
+
+// Clear removes every cached session key and returns the number removed.
+func (c *SessionCache) Clear() int {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	cleared := len(c.entries)
+	clear(c.entries)
+	return cleared
+}
+
 // NewSessionCache creates a cache with the specified TTL.
 // A background goroutine periodically cleans expired entries.
 func NewSessionCache(ttl time.Duration) *SessionCache {

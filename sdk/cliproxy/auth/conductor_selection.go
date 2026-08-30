@@ -290,6 +290,45 @@ func (m *Manager) Selector() Selector {
 	return m.selector
 }
 
+type sessionAffinityController interface {
+	SessionAffinityBindingCount() int
+	ResetSessionAffinity() int
+}
+
+// SessionAffinityStatus reports whether the active selector owns a session
+// affinity cache and, when enabled, how many session keys it currently holds.
+func (m *Manager) SessionAffinityStatus() (sessionKeys int, enabled bool) {
+	if m == nil {
+		return 0, false
+	}
+	m.mu.RLock()
+	controller, enabled := m.selector.(sessionAffinityController)
+	m.mu.RUnlock()
+	if !enabled || controller == nil {
+		return 0, false
+	}
+	return controller.SessionAffinityBindingCount(), true
+}
+
+// ResetSessionAffinity clears the active selector's session bindings without
+// replacing the selector, changing routing configuration, or interrupting
+// executions that have already selected a credential.
+func (m *Manager) ResetSessionAffinity() (clearedSessionKeys int, enabled bool) {
+	if m == nil {
+		return 0, false
+	}
+	m.selectorMu.Lock()
+	defer m.selectorMu.Unlock()
+
+	m.mu.RLock()
+	controller, enabled := m.selector.(sessionAffinityController)
+	m.mu.RUnlock()
+	if !enabled || controller == nil {
+		return 0, false
+	}
+	return controller.ResetSessionAffinity(), true
+}
+
 // SetStore swaps the underlying persistence store.
 func (m *Manager) SetStore(store Store) {
 	m.mu.Lock()

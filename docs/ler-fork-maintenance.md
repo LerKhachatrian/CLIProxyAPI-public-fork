@@ -36,8 +36,44 @@ Apply and test customizations in this order:
 
 The complete security, lifecycle, rollback, and canary verification contract is
 in [`codex-client-oauth-access.md`](codex-client-oauth-access.md).
+4. Authenticated session-affinity reset.
+   - Reports only whether affinity is enabled and the number of cached session keys.
+   - Clears in-memory bindings without changing auth files, priority metadata, routing config, or routing strategy.
+   - Linearizes reset against credential selection while allowing already-selected provider calls to continue.
+   - Makes each affected session's next request evaluate the current highest available priority tier.
 
 Each customization requires focused regression tests. A clean merge without passing behavior tests is not acceptance.
+
+## Session-affinity reset contract
+
+The authenticated management API owns the recurring "apply priorities, then rebind sessions" operation:
+
+```http
+GET /v0/management/routing/session-affinity
+POST /v0/management/routing/session-affinity/reset
+```
+
+`GET` returns `enabled` plus `session_keys`. The count is the number of cached keys, not a logical-session
+count, because one session may retain bounded aliases. No session identifier, credential identifier, token,
+or auth-file content is returned.
+
+`POST` returns `status: "ok"` and `cleared_session_keys`. It is idempotent: an immediate repeat succeeds with
+zero cleared keys. It returns `409` when the active selector has no session-affinity cache and `503` when the
+auth manager is unavailable. Existing management authentication and loopback/external-management policy apply.
+
+Concurrency is owned in process. `Pick` holds a selector read boundary through cache lookup and binding; reset
+holds the write boundary. A selection already inside that boundary finishes binding before reset clears it,
+while a later selection sees the empty cache. Provider execution begins after `Pick` returns and is not held by
+the reset. Delayed result callbacks use match-only touch/delete operations, so they cannot recreate a binding
+that reset removed. Manager reset also serializes against selector replacement.
+
+The operation creates no process, watcher, poller, persistent state, config write, or foreground window. Its
+resource cost is one bounded in-memory map clear under the existing selector lifecycle. Rollback is the normal
+hash-locked binary rollback; there is no state migration or cleanup because the cache is ephemeral.
+
+The temporary routing-strategy hot-reload is containment only until this API is deployed to protected port
+`48317`. After deployment, it is retired: Priority Studio and operator workflows must treat `404` as an
+older-router upgrade requirement and must not mutate routing strategy or configuration to emulate reset.
 
 ## Why Desktop and iOS differed for Fast mode
 

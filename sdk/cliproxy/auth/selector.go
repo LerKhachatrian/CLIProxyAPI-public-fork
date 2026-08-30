@@ -659,6 +659,7 @@ func availabilityBlock(unavailable, quotaExceeded bool, nextRetryAfter, nextReco
 type SessionAffinitySelector struct {
 	fallback Selector
 	cache    *SessionCache
+	resetMu  sync.RWMutex
 }
 
 // SessionAffinityConfig configures the session affinity selector.
@@ -702,6 +703,9 @@ func NewSessionAffinitySelectorWithConfig(cfg SessionAffinityConfig) *SessionAff
 // a session uses multiple models (e.g., gemini-2.5-pro and gemini-3-flash-preview)
 // that may be supported by different auth credentials, and to avoid cross-provider conflicts.
 func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model string, opts cliproxyexecutor.Options, auths []*Auth) (*Auth, error) {
+	s.resetMu.RLock()
+	defer s.resetMu.RUnlock()
+
 	entry := selectorLogEntry(ctx)
 	if opts.Metadata == nil {
 		opts.Metadata = make(map[string]any)
@@ -812,9 +816,33 @@ func (s *SessionAffinitySelector) Stop() {
 // InvalidateAuth removes all session bindings for a specific auth.
 // Called when an auth becomes rate-limited or unavailable.
 func (s *SessionAffinitySelector) InvalidateAuth(authID string) {
-	if s.cache != nil {
-		s.cache.InvalidateAuth(authID)
+	if s == nil || s.cache == nil {
+		return
 	}
+	s.resetMu.Lock()
+	defer s.resetMu.Unlock()
+	s.cache.InvalidateAuth(authID)
+}
+
+// SessionAffinityBindingCount returns the number of cached session keys.
+func (s *SessionAffinitySelector) SessionAffinityBindingCount() int {
+	if s == nil || s.cache == nil {
+		return 0
+	}
+	return s.cache.Len()
+}
+
+// ResetSessionAffinity clears every cached session key. The write lock makes
+// reset linearizable with Pick: a selection that began before reset finishes
+// binding before the cache is cleared, while selections that begin afterward
+// observe the empty cache and evaluate current credential priority.
+func (s *SessionAffinitySelector) ResetSessionAffinity() int {
+	if s == nil || s.cache == nil {
+		return 0
+	}
+	s.resetMu.Lock()
+	defer s.resetMu.Unlock()
+	return s.cache.Clear()
 }
 
 // OnResult handles session affinity binding or release based on execution outcome.

@@ -116,6 +116,34 @@ Prove changes to this mechanism with `test/live_router_cutover_staging.ps1`. The
 
 After a successful live cutover, verify `/fast` in a fresh Codex Desktop thread in a CLIProxy workspace. Refresh only the affected CLIProxy App Server connections if Desktop retains stale model metadata; restart the full Desktop app only as a final fallback.
 
+## Hash-locked Codex client OAuth configuration
+
+Use `cmd/configure_codex_client_oauth` for the one configuration mutation that
+enables or disables official Codex client OAuth access. It is a bounded,
+on-demand operator utility, not a service or management API.
+
+1. Build the utility from the same clean committed source used for the server
+   candidate and record both executable hashes.
+2. Run `--plan` against the exact live config. Plan is zero-write and emits only
+   paths, SHA-256 hashes, booleans, and mutation status.
+3. Preserve the returned source and candidate hashes in the activation receipt.
+4. After the compatible server candidate is healthy, run `--apply` with a new
+   same-volume backup path and both exact hashes.
+5. Verify the watcher loaded the requested value and the exact backup hash
+   matches the plan's source hash.
+
+Windows apply uses `ReplaceFileW`, refuses a source change at the atomic
+replacement boundary, and preserves the exact prior file as the backup. Apply
+also refuses unsafe listeners, malformed or multi-document YAML, non-regular
+files, an existing backup, no-op changes, and unsupported non-Windows atomic
+mutation. Never print, return, or place the configuration contents in a
+receipt.
+
+For rollback, first plan and apply `--value false` with a new backup path, prove
+the provider is removed, and then use the normal hash-locked binary rollback.
+The original pre-enable config backup remains immutable evidence rather than an
+in-place editing target.
+
 ## Deployment safety
 
 - Staging port: `48318`.

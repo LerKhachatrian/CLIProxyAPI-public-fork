@@ -239,6 +239,18 @@ func loopbackBindHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// ValidateListenerConfig rejects an enabled client OAuth provider unless the
+// server is explicitly bound to loopback.
+func ValidateListenerConfig(cfg *config.Config) error {
+	if cfg == nil || !cfg.Codex.ClientOAuthAccess.Enabled {
+		return nil
+	}
+	if !loopbackBindHost(cfg.Host) {
+		return fmt.Errorf("codex.client-oauth-access requires an explicit loopback host")
+	}
+	return nil
+}
+
 // Register installs or removes the Codex client OAuth access provider.
 // Enabling it on a non-loopback listener fails closed.
 func Register(cfg *config.Config, auths authCatalog) error {
@@ -246,8 +258,8 @@ func Register(cfg *config.Config, auths authCatalog) error {
 		sdkaccess.UnregisterProvider(sdkaccess.AccessProviderTypeCodexClientOAuth)
 		return nil
 	}
-	if !loopbackBindHost(cfg.Host) {
-		return fmt.Errorf("codex.client-oauth-access requires an explicit loopback host")
+	if errConfig := ValidateListenerConfig(cfg); errConfig != nil {
+		return errConfig
 	}
 	if auths == nil {
 		return fmt.Errorf("codex.client-oauth-access requires the runtime Codex auth catalog")

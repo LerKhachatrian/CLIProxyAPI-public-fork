@@ -34,6 +34,31 @@ codex:
 The default is disabled. Existing configured API keys remain accepted through
 the existing access provider.
 
+The repository-owned activation utility provides a zero-write plan and a
+hash-bound Windows apply without printing or returning the secret-bearing
+configuration:
+
+```powershell
+go build -trimpath `
+  -o <staging-path>\configure_codex_client_oauth.exe `
+  ./cmd/configure_codex_client_oauth
+
+& <staging-path>\configure_codex_client_oauth.exe `
+  --config <config-path> --value true --plan
+
+& <staging-path>\configure_codex_client_oauth.exe `
+  --config <config-path> --backup <new-backup-path> --value true `
+  --expected-source-sha256 <plan-source-sha256> `
+  --expected-candidate-sha256 <plan-candidate-sha256> --apply
+```
+
+Apply refuses drift, an existing backup, an unsafe listener, a no-op, a
+non-regular configuration file, or a non-atomic platform. On Windows it uses
+`ReplaceFileW` to atomically install the candidate while preserving the exact
+previous file at the requested backup path. The normal watcher then applies the
+change without another process restart. The utility emits only a structured
+receipt containing paths, hashes, booleans, and mutation status.
+
 ## Causal evidence and architecture decision
 
 Using Codex's supported `openai_base_url` preserves ChatGPT authentication, so
@@ -96,8 +121,10 @@ or credential restoration is required.
 Minimum code gates:
 
 ```powershell
-go test -count=1 ./internal/access/codex_oauth ./internal/access ./internal/config ./sdk/cliproxy ./internal/api ./test/codex_client_oauth_staging_proxy
+go test -count=1 ./cmd/configure_codex_client_oauth ./internal/access/codex_oauth ./internal/access ./internal/config ./sdk/cliproxy ./internal/api ./test/codex_client_oauth_staging_proxy
 go test -race -count=1 ./internal/access/codex_oauth
+go vet ./cmd/configure_codex_client_oauth ./internal/access/codex_oauth ./internal/access ./internal/config ./sdk/cliproxy ./internal/api ./test/codex_client_oauth_staging_proxy
+go build -trimpath -o <staging-path>\configure_codex_client_oauth.exe ./cmd/configure_codex_client_oauth
 go test -count=1 ./...
 go build -trimpath -o <staging-path>\cliproxyapi.exe ./cmd/server
 ```

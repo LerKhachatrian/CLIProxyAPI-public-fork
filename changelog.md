@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-30 02:38:05 -04:00
+
+- Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`
+- Added `cmd/configure_codex_client_oauth` as the single on-demand activation surface for the feature flag. Plan mode is zero-write; Windows apply requires exact source/candidate SHA-256 values, rejects drift again while holding the target against concurrent writers, installs through `ReplaceFileW`, and preserves the exact previous config at a new same-volume backup path. The utility rejects unsafe listeners, malformed or multi-document YAML, non-regular files, oversized config input, an existing backup, no-op apply, and non-Windows mutation while never emitting config contents or credential material.
+- Kept the HTTP management surface unchanged: configuration activation remains a local, hash-bound operator action rather than a new remotely callable route or long-lived helper. Documented enable, disable, backup, rollback, and watcher verification in the feature and fork-maintenance runbooks.
+- Verification passed for formatting, focused tests, `go vet`, Windows atomic replacement, exact-backup preservation, atomic-boundary drift refusal, secret-redacted parse failures, idempotent planning, and pre-commit server/tool builds. Two live-config plan passes returned stable source/candidate hashes while file length and last-write time remained unchanged; apply remained false and live port `48317` was not restarted or mutated. The full Windows repository suite passed every changed package and reported only the known unrelated `internal/store` temporary `.git` rename access-denied cases. Clean committed immutable builds, binary staging, and read-only live preflight follow after this source boundary.
+
 ## 2026-08-30 01:58:48 -04:00
 
 - Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`

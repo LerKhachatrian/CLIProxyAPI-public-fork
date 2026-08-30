@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-30 01:02:00 -04:00
+
+- Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`
+- Refreshed official upstream through `f0de1d00` (`v7.2.145`) and created `codex/upstream-v7.2.145-canonical-oauth` from that exact baseline. Preserved the deployed `v7.2.140` source through the already-pushed rollback tag `ler-live-2026-08-24-gpt56-fast-v7.2.140` at `3579f13f`.
+- Replayed the customization stack in documented order: targeted Codex account reauthentication, GPT-5.6 Fast metadata/request normalization, the maintained fork runbook, and hash-locked live deployment tooling. Resolved the sole upstream conflict by retaining both the new client-version reasoning compatibility map and the Fast-tier model allowlist.
+- Verification passed for the changed management, Codex model-catalog, and Codex Responses translator packages. No live binary, listener, configuration, authentication record, Desktop process, SSH lane, profile state, or scheduled task was changed; production remains on the tagged `v7.2.140` deployment.
+
 ## 2026-08-24 13:58:48 -04:00
 
 - Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`

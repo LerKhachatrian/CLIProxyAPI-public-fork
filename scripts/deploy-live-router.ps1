@@ -106,14 +106,85 @@ function Get-SingleListener {
     return $listeners[0]
 }
 
+function Get-LimitedProcessImagePath {
+    param([int]$ProcessId)
+
+    $typeName = 'CLIProxyDeployment.LimitedProcessImagePath'
+    if ($null -eq ($typeName -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace CLIProxyDeployment
+{
+    public static class LimitedProcessImagePath
+    {
+        private const uint ProcessQueryLimitedInformation = 0x1000;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(uint access, bool inheritHandle, int processId);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool QueryFullProcessImageName(
+            IntPtr process,
+            uint flags,
+            StringBuilder path,
+            ref int size);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr handle);
+
+        public static string Get(int processId)
+        {
+            IntPtr handle = OpenProcess(ProcessQueryLimitedInformation, false, processId);
+            if (handle == IntPtr.Zero)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            try
+            {
+                var path = new StringBuilder(32768);
+                int size = path.Capacity;
+                if (!QueryFullProcessImageName(handle, 0, path, ref size))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+                return path.ToString();
+            }
+            finally
+            {
+                CloseHandle(handle);
+            }
+        }
+    }
+}
+'@
+    }
+
+    return [CLIProxyDeployment.LimitedProcessImagePath]::Get($ProcessId)
+}
+
 function Get-ExecutablePath {
     param([int]$ProcessId)
 
-    $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction Stop
-    if ($null -eq $processInfo -or [string]::IsNullOrWhiteSpace($processInfo.ExecutablePath)) {
-        throw "Could not resolve executable path for PID $ProcessId"
+    $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction SilentlyContinue
+    if ($null -ne $processInfo -and -not [string]::IsNullOrWhiteSpace($processInfo.ExecutablePath)) {
+        return [System.IO.Path]::GetFullPath($processInfo.ExecutablePath)
     }
-    return [System.IO.Path]::GetFullPath($processInfo.ExecutablePath)
+
+    try {
+        $limitedPath = Get-LimitedProcessImagePath -ProcessId $ProcessId
+    }
+    catch {
+        throw "Could not resolve executable path for PID $ProcessId through CIM or limited process query: $($_.Exception.Message)"
+    }
+    if ([string]::IsNullOrWhiteSpace($limitedPath)) {
+        throw "Limited process query returned an empty executable path for PID $ProcessId"
+    }
+    return [System.IO.Path]::GetFullPath($limitedPath)
 }
 
 function Assert-ListenerOwnedByLivePath {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-30 18:18:30 -04:00
+
+- Session ID: `01a05195-1e1b-7431-af56-b9e1db3b52ab`
+- Added authenticated `GET /v0/management/routing/session-affinity` and idempotent `POST /v0/management/routing/session-affinity/reset`. The reset clears only in-memory session keys, serializes against selector replacement and credential selection, does not mutate auth/config/routing strategy, and does not interrupt provider calls that already selected a credential. Delayed result callbacks cannot recreate cleared bindings.
+- Added focused cache, priority-reevaluation, manager/handler, disabled/unavailable, delayed-result, and blocked-selection concurrency tests plus a binary-level staging harness. The temporary routing-strategy toggle remains containment only until this endpoint reaches protected live port `48317`, after which it is retired.
+- Verification: `gofmt`; changed-package tests; 100 repeated blocked-selection/reset overlap runs; `go vet` for auth/management/API packages; PowerShell staging-script parse; and the repository-wide suite. Every changed package passed. The full suite's only failures were the known unrelated `internal/cache` intermittent eviction case (its exact test passed 10 immediate reruns) and Windows `internal/store` temporary `.git` rename access-denied cases.
+- Built the clean immutable Go `1.26.2` candidate from source commit `869d8c112c6b5eb246e860110e9da90538747e51`: `C:\Users\lerkh\.codex\cliproxy\candidates\session-affinity-reset-v7.2.145-869d8c11\cliproxyapi.session-affinity-reset-869d8c11.exe`, SHA-256 `512cdaa050239acb8bf5724350007562eb5ff32ed7b8304b1a9a655c6d396d66`, with `vcs.modified=false`.
+- Binary staging on `48318` passed management authentication (`401` without a key), enabled status, idempotent zero-key reset/repeat, exact candidate hash, clean teardown/port release, and the inherited four-model Fast/priority matrix on `48318`/`48319`. No live binary, listener, config, auth record, Desktop/App Server, thread, or routing strategy was changed. Live promotion remains behind the documented impact warning and action-time approval boundary.
+
 ## 2026-08-30 02:43:39 -04:00
 
 - Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`

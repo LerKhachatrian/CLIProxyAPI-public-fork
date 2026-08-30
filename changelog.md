@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-30 02:43:39 -04:00
+
+- Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`
+- Built the immutable clean server candidate from source commit `889b2bcc8d82cfe9be047141c4c8727481819b35`: `cliproxyapi.canonical-oauth-889b2bcc.exe`, SHA-256 `2e935a8f6c8ce95d87df8da161bf9854382727c9c54467c8561b0bb17eec3f2d`. Built the matched activation tool `configure_codex_client_oauth-889b2bcc.exe`, SHA-256 `575e69b66d1d99634bce6a9e08f59b6c17914f8e385dd4bdbcaecc62d571c40d`. Both embed the exact source revision with `vcs.modified=false`.
+- Binary staging passed for all supported GPT-5.6 Fast models, unsupported-model exclusion, `fast -> priority`, literal priority preservation, and Standard omission. The hash-locked live cutover preflight reports ready against healthy PID `35364`, current live/rollback SHA-256 `340557d0b13a35480b32ac77c622d3ca75665ff180e09191b533e37ddea4938d`, and protected port `48317`.
+- Two immutable-tool plans against the live config produced stable source SHA-256 `41de9805ca5ed49cb3dc22e33f5365f480c2039e4ab24f400264ea04f3814729` and candidate SHA-256 `2b25251b499c3765a1dc2dc49b66a320546c4dc6a6be46593e9266d2def6d1ab`; config length and last-write time were unchanged, `applied=false`, and no configuration contents or credentials were emitted. Live binary/config activation remains pending explicit action-time approval.
+
 ## 2026-08-30 02:38:05 -04:00
 
 - Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`

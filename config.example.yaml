@@ -232,6 +232,13 @@ routing:
 
 # Codex provider behavior.
 codex:
+  # Allow official Codex clients to authenticate to this proxy with their
+  # existing ChatGPT OAuth bearer token. This fails closed unless `host` is an
+  # explicit loopback address. OpenAI validates the token on demand, the
+  # ChatGPT account must already exist in this router's enabled Codex OAuth
+  # pool, and only bounded token hashes are cached for one minute.
+  client-oauth-access:
+    enabled: false
   # When true, and routing.strategy is fill-first or routing.session-affinity is true,
   # remap Codex prompt_cache_key and installation identity per selected auth.
   # Some superstitious users believe request tracking identifiers can be used

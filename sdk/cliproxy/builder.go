@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	codexoauth "github.com/router-for-me/CLIProxyAPI/v7/internal/access/codex_oauth"
 	configaccess "github.com/router-for-me/CLIProxyAPI/v7/internal/access/config_access"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/api"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
@@ -236,7 +237,6 @@ func (b *Builder) Build() (*Service, error) {
 		pluginHost.ApplyConfig(context.Background(), b.cfg)
 		pluginHost.RegisterFrontendAuthProviders()
 	}
-	accessManager.SetProviders(sdkaccess.RegisteredProviders())
 
 	coreManager := b.coreManager
 	cooldownStateStore := b.cooldownStateStore
@@ -263,6 +263,10 @@ func (b *Builder) Build() (*Service, error) {
 	if pluginHost != nil {
 		coreManager.SetPluginScheduler(pluginHost)
 	}
+	if errRegisterCodexOAuth := codexoauth.Register(b.cfg, coreManager); errRegisterCodexOAuth != nil {
+		return nil, fmt.Errorf("cliproxy: register Codex client OAuth access: %w", errRegisterCodexOAuth)
+	}
+	accessManager.SetProviders(sdkaccess.RegisteredProviders())
 
 	service := &Service{
 		cfg:                 b.cfg,

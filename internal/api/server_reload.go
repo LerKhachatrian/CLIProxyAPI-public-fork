@@ -22,7 +22,10 @@ func (s *Server) applyAccessConfig(oldCfg, newCfg *config.Config) bool {
 	if s == nil || s.accessManager == nil || newCfg == nil {
 		return false
 	}
-	if _, err := access.ApplyAccessProviders(s.accessManager, oldCfg, newCfg); err != nil {
+	if s.handlers == nil || s.handlers.AuthManager == nil {
+		return false
+	}
+	if _, err := access.ApplyAccessProviders(s.accessManager, s.handlers.AuthManager, oldCfg, newCfg); err != nil {
 		return false
 	}
 	return true

@@ -146,6 +146,11 @@ type AntigravityConfig struct {
 // CodexConfig configures provider-wide Codex request behavior.
 type CodexConfig struct {
 	IdentityConfuse bool `yaml:"identity-confuse" json:"identity-confuse"`
+	// ClientOAuthAccess allows official Codex clients to authenticate to a
+	// loopback-only CLIProxy listener with their ChatGPT OAuth bearer token.
+	// The token is validated against OpenAI and its account must already exist
+	// in this router's enabled Codex OAuth pool.
+	ClientOAuthAccess CodexClientOAuthAccessConfig `yaml:"client-oauth-access" json:"client-oauth-access"`
 	// DisableCodexCloaking disables forcing the official Codex identity headers on HTTP/SSE and WebSocket requests.
 	DisableCodexCloaking bool `yaml:"disable-codex-cloaking" json:"disable-codex-cloaking"`
 	// StreamBootstrapBuffering holds back initial handshake events (response.created,
@@ -160,6 +165,12 @@ type CodexConfig struct {
 	OptimizeMultiAgentV2 bool `yaml:"optimize-multi-agent-v2" json:"optimize-multi-agent-v2"`
 	// LiveMediaRelay terminates and relays Codex Live WebRTC media in this process.
 	LiveMediaRelay CodexLiveMediaRelayConfig `yaml:"live-media-relay" json:"live-media-relay"`
+}
+
+// CodexClientOAuthAccessConfig controls loopback-only downstream client
+// authentication for official Codex clients.
+type CodexClientOAuthAccessConfig struct {
+	Enabled bool `yaml:"enabled" json:"enabled"`
 }
 
 // CodexLiveMediaRelayConfig configures the in-process Codex Live WebRTC gateway.

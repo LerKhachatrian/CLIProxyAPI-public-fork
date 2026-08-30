@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-30 01:58:48 -04:00
+
+- Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`
+- Added opt-in `codex.client-oauth-access` at the existing request-authentication boundary so official Codex Desktop/CLI clients can retain built-in provider identity `openai` while using `openai_base_url` through loopback CLIProxy. Startup fails closed unless the listener is explicitly loopback; each request also requires a loopback socket peer, a well-formed ChatGPT bearer/account pair, OpenAI validation, and an enabled matching Codex account in the runtime pool. Existing API-key authentication remains unchanged and the feature defaults off.
+- Bounded the security and resource envelope: identical validations are singleflight-deduplicated, unique validation calls are limited to eight concurrently, and at most 256 SHA-256 bearer/account hashes are retained for one minute. Pool membership is rechecked without cloning token-bearing auth metadata; access results expose only a hash-derived principal and static source label.
+- Added the disposable loopback staging authenticator and privacy-preserving HTTP/WebSocket tier verifier. Real official Codex 0.151.0 canary runs completed harmless file-tool workflows: Standard thread `01a05135-506c-7e13-9918-071da9cc613a` emitted five `response.create` frames with the tier absent, while Fast thread `01a05135-f92a-7093-9871-91f458edee14` emitted five frames with `service_tier: priority`. The verifier retained only sequence/tier classifications and was stopped afterward; protected live port `48317` remained healthy and unchanged.
+- Verification passed on Windows for the focused access/config/auth/SDK/API/staging packages and on Linux/WSL with the race detector for `internal/access/codex_oauth` plus `sdk/cliproxy/auth`. The repository-wide Windows suite passed every changed package and reported only unrelated upstream failures: an intermittent `internal/cache` eviction test and existing `internal/store` temp `.git` rename access-denied cases. Immutable candidate build, binary-level Fast staging, commit/push provenance, and live preflight remain pending; no live binary, configuration, listener, authentication file, Desktop process, SSH lane, profile state, or scheduled task was changed.
+
 ## 2026-08-30 01:02:00 -04:00
 
 - Session ID: `019fe4ed-49e6-7360-b899-cd36775e7e6f`

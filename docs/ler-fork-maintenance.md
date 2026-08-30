@@ -28,6 +28,14 @@ Apply and test customizations in this order:
    - Normalizes client `service_tier: "fast"` to upstream `"priority"`.
    - Preserves `"priority"` and omits default, auto, or unknown tiers.
    - Keeps unrelated custom models Fast-disabled.
+3. Loopback-only official Codex client OAuth access.
+   - Preserves the built-in Codex `openai` provider identity and normal CLIProxy account routing.
+   - Requires an explicit loopback bind, a loopback socket peer, OpenAI validation, and membership in the enabled Codex account pool.
+   - Retains only a one-minute, 256-entry SHA-256 validation cache and bounds unique concurrent validations to eight.
+   - Keeps existing API-key authentication intact and defaults to disabled.
+
+The complete security, lifecycle, rollback, and canary verification contract is
+in [`codex-client-oauth-access.md`](codex-client-oauth-access.md).
 
 Each customization requires focused regression tests. A clean merge without passing behavior tests is not acceptance.
 

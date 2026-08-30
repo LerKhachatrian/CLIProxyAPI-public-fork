@@ -6,9 +6,11 @@ import (
 	"sort"
 	"strings"
 
+	codexoauth "github.com/router-for-me/CLIProxyAPI/v7/internal/access/codex_oauth"
 	configaccess "github.com/router-for-me/CLIProxyAPI/v7/internal/access/config_access"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
+	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -79,13 +81,16 @@ func ReconcileProviders(oldCfg, newCfg *config.Config, existing []sdkaccess.Prov
 // ApplyAccessProviders reconciles the configured access providers against the
 // currently registered providers and updates the manager. It logs a concise
 // summary of the detected changes and returns whether any provider changed.
-func ApplyAccessProviders(manager *sdkaccess.Manager, oldCfg, newCfg *config.Config) (bool, error) {
+func ApplyAccessProviders(manager *sdkaccess.Manager, auths *coreauth.Manager, oldCfg, newCfg *config.Config) (bool, error) {
 	if manager == nil || newCfg == nil {
 		return false, nil
 	}
 
 	existing := manager.Providers()
 	configaccess.Register(&newCfg.SDKConfig)
+	if errRegisterCodexOAuth := codexoauth.Register(newCfg, auths); errRegisterCodexOAuth != nil {
+		return false, fmt.Errorf("registering Codex client OAuth access: %w", errRegisterCodexOAuth)
+	}
 	providers, added, updated, removed, err := ReconcileProviders(oldCfg, newCfg, existing)
 	if err != nil {
 		log.Errorf("failed to reconcile request auth providers: %v", err)

@@ -27,6 +27,9 @@ type AccessProvider struct {
 const (
 	// AccessProviderTypeConfigAPIKey is the built-in provider validating inline API keys.
 	AccessProviderTypeConfigAPIKey = "config-api-key"
+	// AccessProviderTypeCodexClientOAuth validates official Codex ChatGPT OAuth
+	// credentials for an explicitly enabled loopback-only listener.
+	AccessProviderTypeCodexClientOAuth = "codex-client-oauth"
 
 	// DefaultAccessProviderName is applied when no provider name is supplied.
 	DefaultAccessProviderName = "config-inline"

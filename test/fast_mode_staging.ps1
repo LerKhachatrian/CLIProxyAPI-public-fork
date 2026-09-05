@@ -126,6 +126,8 @@ codex-api-key:
     base-url: "http://127.0.0.1:$CapturePort"
     request-retry: 0
     models:
+      - name: "gpt-6-astra"
+        alias: "gpt-6-astra"
       - name: "gpt-5.6-sol"
         alias: "gpt-5.6-sol"
       - name: "gpt-5.6-sol-ultrafast"
@@ -203,9 +205,15 @@ codex-api-key:
     }
     $catalog = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$ProxyPort/v1/models?client_version=0.144.0" -Headers $headers -TimeoutSec 10
     $models = @($catalog.models)
-    $fastModelIDs = @("gpt-5.6-sol", "gpt-5.6-sol-ultrafast", "gpt-5.6-terra", "gpt-5.6-luna")
+    $fastModelIDs = @("gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-sol-ultrafast", "gpt-5.6-terra", "gpt-5.6-luna")
     foreach ($modelID in $fastModelIDs) {
         Assert-FastMetadata -Model (Get-RequiredModel -Models $models -ID $modelID) -ID $modelID
+    }
+
+    $astra = Get-RequiredModel -Models $models -ID "gpt-6-astra"
+    $astraEfforts = @($astra.supported_reasoning_levels | ForEach-Object { $_.effort })
+    if ($astra.visibility -ne "list" -or ($astraEfforts -join ",") -ne "low,medium,high,xhigh,max,ultra") {
+        throw "gpt-6-astra visibility or reasoning metadata is incomplete"
     }
 
     $unsupported = Get-RequiredModel -Models $models -ID "custom-fast-disabled"

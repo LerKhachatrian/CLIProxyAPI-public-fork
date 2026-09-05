@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-04 21:37:30 -04:00
+
+- Session ID: `01a06ee8-a644-7983-a7a4-3bf693e8548e`
+- Integrated official CLIProxyAPI `v7.2.151` / `5208aec7` on branch `codex/gpt6-astra-v7.2.151` as merge commit `134d253334b5d3d3b898d1428e3d3454ce7cf5f6`. The merge preserves targeted Codex reauthentication, the GPT-5.6 Fast compatibility allowlist, loopback official-client OAuth access, and linearizable authenticated session-affinity reset while adopting upstream GPT-6 Astra catalog and reasoning metadata plus the new Merkle-prefix affinity matcher.
+- Resolved the session-cache overlap against upstream's indexed cache: reset now clears entries, alias groups, eviction order, eviction elements, and the Merkle matcher under the existing selection boundary; auth invalidation clears both legacy and matcher bindings. Focused Codex-model and affinity packages pass, and `go test -count=1 -p 1 ./...` passes in full.
+- Built the clean immutable Go `1.26.2` candidate `C:\Users\lerkh\.codex\cliproxy\candidates\gpt6-astra-v7.2.151-134d2533\cliproxyapi.gpt6-astra-134d2533.exe`, SHA-256 `C8AB7781984A35B0B5C512D4E5723318C7B2C77EECCC519849C833A9C8BBC31F`, with `vcs.revision=134d253334b5d3d3b898d1428e3d3454ce7cf5f6` and `vcs.modified=false`.
+- Extended the existing binary staging owner to require `gpt-6-astra` visibility, official Fast metadata, and reasoning levels `low,medium,high,xhigh,max,ultra`. Staging on `48318`/`48319` passed alongside GPT-5.6 Fast-to-priority translation, literal priority preservation, Standard omission, and unsupported-model exclusion. Protected live port `48317` remained on PID `25704` and SHA-256 `340557D0B13A35480B32AC77C622D3CA75665FF180E09191B533E37DDEA4938D` at this checkpoint.
+
 ## 2026-08-30 18:18:30 -04:00
 
 - Session ID: `01a05195-1e1b-7431-af56-b9e1db3b52ab`

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-07 06:06:00 -04:00
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- After Ler's explicit green light and router-only interruption warning, promoted the already-built, already-tested `134d253334b5d3d3b898d1428e3d3454ce7cf5f6` candidate to the canonical `codex-router/bin/cliproxyapi.exe` path. SHA-256 is `C8AB7781984A35B0B5C512D4E5723318C7B2C77EECCC519849C833A9C8BBC31F`; no Go source, configuration, account, SSH, Codex task, or App Server changes were made.
+- Fresh hash-locked preflight and the actual C: tiny disk-budget gate passed. The existing deployment command replaced verified PID 32092 with PID 1460988 and passed exact-image/hash/HTTP health checks. Retained rollback `bin/cliproxyapi.fast-3579f13f.prepared-20260823.exe`, SHA-256 `340557D0B13A35480B32AC77C622D3CA75665FF180E09191B533E37DDEA4938D`.
+- After the deployment owner exited, one announced router-only cold start through the real `ccli-clean.ps1 --version` launcher exited 0 and independently left PID 1461596 serving the canonical candidate. Both launcher parents exited. Current health and authenticated session-affinity GET return 200, with affinity enabled; the same PID and hash remained healthy at 10:03 UTC. Existing startup wiring uses the replaced canonical path and was not changed. No actual laptop reboot, new Desktop/iOS task, provider quota burn, real reset, priority mutation, or session-reset POST was used for QA.
+- Native Desktop/iOS Fast interaction remains a deferred human check; the existing candidate's recorded full Go/staging/Fast matrix is unchanged. Widget 0.23's prior installed/fake-controller proof remains valid; its live ledger still has 19 grants and no operation intents. A repeat minimized-only UI verifier correctly refused a restored Reset Center window without changing focus.
+- Requested operational-readiness Telegram message 816 was delivered: CLIProxy threads can resume, and no further router restart is planned for the remaining Widget work. This readiness alert is distinct from final Widget-item publication. Evidence remains in `%TEMP%/codex-widget-reset-center-6f736509a346425b918e38e54fb5a945` (`router-deploy-01.json`, `router-cold-start-01.json`, `live-affinity-current.json`). Deployment source anchor: `ler-live-20260907-134d2533`.
+
 ## 2026-09-04 21:37:30 -04:00
 
 - Session ID: `01a06ee8-a644-7983-a7a4-3bf693e8548e`

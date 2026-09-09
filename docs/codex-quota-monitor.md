@@ -110,9 +110,9 @@ These are bounded-workload claims, not universal no-leak/no-freeze promises.
 - [x] Implement capture-time truth, normalized observations and durable scheduler.
 - [x] Unit, concurrency, failure, lifecycle and budget tests.
 - [x] Widget adapter, independent controls, local age/countdown and history truth.
-- [ ] Fake loopback and installed isolated-profile E2E; data preservation.
-- [ ] Full applicable tests/build, focused commits and fork publication.
-- [ ] Immutable staging candidate, hash-locked rollback, exact live preflight.
+- [x] Fake loopback and installed isolated-profile E2E; data preservation.
+- [x] Full applicable tests/build, focused commits and fork publication.
+- [x] Immutable staging candidate, hash-locked rollback, exact live preflight.
 - [ ] Impact warning and action-time approval, then live activation/readback.
 
 The monitor is additive. A compatible older router causes new clients to show an
@@ -132,7 +132,12 @@ final post-recovery-change scheduler race test passed under Linux Go 1.26.2 in
 3.467 seconds. No native Windows race or
 physical-disk-soak claim is made. No live account or irreversible action was used.
 Final build/source provenance, immutable staging, action-time approval and live
-activation remain separate release gates, not implied by these measurements.
+activation are separate release gates, not implied by these measurements. The
+final build/staging/preflight gates now pass at source `8807b55b5c8f4cff7a3c430ff5988d288bf473ee`,
+SHA-256 `8e10e3005ec82369942711e75b663a021450fee9c262d734b79ecc8a6253de13`.
+Only action-time-approved live activation and subsequent independent native
+readback remain pending. The installed Widget keeps both automatic lanes off;
+the old router cannot supply its new quota-monitor view until that cutover.
 
 `python test/codex_monitor_staging.py --candidate <absolute-EXE>
 --evidence-dir <fresh-absolute-directory>` is the feature's binary staging entry.

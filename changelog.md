@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-08 20:32:29 -04:00 — immutable monitor candidate and protected-live preflight
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Implementation source `8807b55b5c8f4cff7a3c430ff5988d288bf473ee` is pushed to `ler-public-fork/codex/gpt6-astra-v7.2.151`. The clean Go 1.26.2 build records that exact revision and `vcs.modified=false`: immutable `passive-monitor-v7.2.151-8807b55b/cliproxyapi.passive-monitor-8807b55b.exe`, SHA-256 `8e10e3005ec82369942711e75b663a021450fee9c262d734b79ecc8a6253de13`, under the existing candidate root.
+- Final binary monitor staging passes actual synthetic assistant output/passive quota capture, authenticated strict management input, 30 no-write views, the coalesced-flush boundary and abrupt-restart recovery with zero external/provider-monitor requests. Five validation negatives reject protected/duplicate ports, relative paths and the installed image before creating state. Existing five-model Fast/priority/Standard metadata+translation and session-affinity authorization/idempotency staging pass. Disposable 48320/48321 rehearsals prove the competing-respawner path and forced-failure automatic rollback to the baseline hash.
+- Current live 48317 remains PID 30824 at canonical SHA-256 `c8ab7781984a35b0b5c512d4e5723318c7b2c77eeccc519849c833a9c8bbc31f`. A new hash-identical `cliproxyapi.rollback-c8ab7781.exe` is retained beside the immutable candidate. `deploy-live-router.ps1 -PreflightOnly` reports ready with exact candidate/live/rollback hashes and health. Configuration was not read or changed; only its verified process argument pathname was used. All staging owners exited and staging ports were released.
+- Evidence remains under `passive-first`: `router-stage-final01/receipt.json`, `router-fast-final01.log`, `router-affinity-final01.log`, `router-cutover-final01.log`, `router-preflight01.json`. Matching Widget 0.32 is independently installed with both automatic lanes off and original data preserved. Required next gate is an explicit impact warning and action-time approval to replace/restart only router 48317, followed by independent live/native readback. No live cutover or completion notification has occurred.
+
 ## 2026-09-08 20:19:28 -04:00 — monitor regression and binary staging acceptance
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-09 14:37:00 -04:00 — activity-aware fallback accepted live
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Ler's new in-thread greenlight superseded the earlier unanswered approval request. Fresh disk/hash/owner/health preflight and the repeated interruption warning preceded activation of the unchanged staged `fdfa6ae8` candidate. Canonical SHA-256 is `cb2e84421a4e26b98667beff0174be459b2c546108e3f614efe3d4b6cd2c1a91`; independent PID 1946164 serves HTTP 200 after the deployment owner exits. Source anchor: `ler-live-20260909-fdfa6ae8`.
+- The dedicated `56ff39cd` rollback binary remains hash-verified; only its redundant displaced executable was removed by the guarded deployer. No configuration/auth inspection, account action, explicit affinity reset, test generation, App Server or SSH change occurred. Normal Auto monitoring remains enabled.
+- Canonical Widget 0.38 independently cold-starts on the accepted package, reconnects all ten account cards and full-email tooltips, and preserves every saved setting, both Auto schedules, all prior 30 reset events and 49,606 projection samples with zero operation intents. Full/race/staging and package proof remain valid; this acceptance changes documentation only. The separately approved initial reset-inventory startup fix is not included and follows after this item's publication and completion notice.
+
 ## 2026-09-09 08:39:00 -04:00 — activity-aware candidate staging accepted
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

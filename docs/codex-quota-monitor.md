@@ -1,5 +1,11 @@
 # Passive-first Codex quota monitoring
 
+## Current live acceptance — 2026-09-09 14:37 -04:00
+
+Session `01a077c3-26f5-7242-9d03-424a32cafc47`. The activity-aware release is now live, superseding its historical pending gates below. Ler's explicit greenlight covered the disclosed brief router interruption and Widget installation. Fresh preflight verified the immutable staged candidate, canonical listener, health and rollback, and the impact warning was repeated before execution. Clean source `fdfa6ae8b867ecd31d81a9cc877cd478ab05d687`, source tag `ler-live-20260909-fdfa6ae8`, maps to canonical SHA-256 `cb2e84421a4e26b98667beff0174be459b2c546108e3f614efe3d4b6cd2c1a91`. PID 1946164 independently serves HTTP 200 after the deployment owner exits. The hash-matched `56ff39cd` rollback remains retained; only the redundant displaced copy was removed.
+
+Installed Widget 0.38 independently reconnects ten accounts after its short-lived launcher exits. Both Auto lanes, all saved settings, full-email hover coverage and prior history pass readback without verifier provider/manual/action requests. Normal scheduled operation is authorized, not proof of every provider balance. Full/race, real-client and binary activity/Fast/affinity/forced-rollback staging evidence remains unchanged. Human headed/DPI/actual Restart checks remain deferred in Widget's existing acceptance checklist. Initial unknown reset inventory can still wait for its old 0–24-hour startup deadline; the now-approved startup-inventory fix is a separate subsequent item, not part of this binary.
+
 ## Decision and scope
 
 This is a management subfeature, owned by

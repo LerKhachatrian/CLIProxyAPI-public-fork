@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-08 21:04:14 -04:00 — approved passive-first live activation
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- After the exact router-only impact warning, Ler replied `approved` in the current task. Fresh preflight and the exact-volume tiny disk gate passed. The existing hash-locked deployer activated unchanged clean source `8807b55b5c8f4cff7a3c430ff5988d288bf473ee`, canonical SHA-256 `8e10e3005ec82369942711e75b663a021450fee9c262d734b79ecc8a6253de13`, replacing only old PID 30824. Deployment source anchor: `ler-live-20260909-8807b55b`.
+- The deployer started canonical PID 1271864. After deployment parent PID 1273596 exited, exact image/hash and HTTP 200 remained healthy. Retained rollback `cliproxyapi.rollback-c8ab7781.exe` matches prior SHA-256 `c8ab7781984a35b0b5c512d4e5723318c7b2c77eeccc519849c833a9c8bbc31f`; only the redundant displaced binary was removed. No second restart, configuration/auth inspection or mutation, account action, provider test send, explicit affinity clear, App Server or SSH change occurred.
+- Installed Widget 0.32 reconnected automatically to all ten account cards without a manual provider check, while both automatic lanes remain off. Its existing 30 reset events/49,606 projection samples stay hash-identical, unrelated preferences are preserved and the operation journal stays empty. Native readback was minimized/nonactivating and the temporary verifier exited.
+- Evidence: `passive-first/router-activation-authorization.json`, `router-cutover01.json`, `runtime32-reconnected.json`. Approval Telegram 880 was delivered without a Telegram ACK; explicit in-thread approval is the authority. Full suite/race, synthetic monitor/Fast/affinity and rollback evidence is unchanged; headed acceptance and actual account recovery are not inferred. Final documentation publication and the single implementation-completion dispatch follow this acceptance record.
+
 ## 2026-09-08 20:32:29 -04:00 — immutable monitor candidate and protected-live preflight
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

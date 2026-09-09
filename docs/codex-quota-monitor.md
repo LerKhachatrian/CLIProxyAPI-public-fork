@@ -113,7 +113,7 @@ These are bounded-workload claims, not universal no-leak/no-freeze promises.
 - [x] Fake loopback and installed isolated-profile E2E; data preservation.
 - [x] Full applicable tests/build, focused commits and fork publication.
 - [x] Immutable staging candidate, hash-locked rollback, exact live preflight.
-- [ ] Impact warning and action-time approval, then live activation/readback.
+- [x] Impact warning and action-time approval, then live activation/readback.
 
 The monitor is additive. A compatible older router causes new clients to show an
 upgrade requirement and make no legacy provider sweeps. Binary rollback leaves
@@ -135,9 +135,17 @@ Final build/source provenance, immutable staging, action-time approval and live
 activation are separate release gates, not implied by these measurements. The
 final build/staging/preflight gates now pass at source `8807b55b5c8f4cff7a3c430ff5988d288bf473ee`,
 SHA-256 `8e10e3005ec82369942711e75b663a021450fee9c262d734b79ecc8a6253de13`.
-Only action-time-approved live activation and subsequent independent native
-readback remain pending. The installed Widget keeps both automatic lanes off;
-the old router cannot supply its new quota-monitor view until that cutover.
+Live activation passed on 2026-09-09 after the exact impact warning and Ler's
+in-thread approval. Canonical PID 1271864 kept the same accepted hash and HTTP 200
+after its deployment parent exited. Deployment tag `ler-live-20260909-8807b55b`
+anchors the binary's exact source. The matching installed Widget 0.32 reconnected
+automatically with ten account cards, both automatic lanes still off and prior
+history/unrelated preferences preserved. No real provider test send, manual
+monitoring queue, account action, config change or extra restart was used.
+Receipts: `router-cutover01.json` and `runtime32-reconnected.json` in the existing
+task evidence root. The previous hash-matched binary remains available for rollback.
+This is live software acceptance, not proof of account recovery or headed human UI
+acceptance. Completion dispatch follows final scoped documentation publication.
 
 `python test/codex_monitor_staging.py --candidate <absolute-EXE>
 --evidence-dir <fresh-absolute-directory>` is the feature's binary staging entry.

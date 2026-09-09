@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-09 00:32:20 -04:00 — automatic-reset-spacing immutable staging accepted
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Clean committed source `dbfb45e9cc7dee38431bb2caefff436c929434ad` builds with Go 1.26.2 and `vcs.modified=false` as immutable `auto-reset-gap-v7.2.151-dbfb45e9/cliproxyapi.exe`, SHA-256 `56ff39cdf1f0508f0af56279e2c6d8084f33357b70e3da5a4705478a895f16f9`. No source changes follow the full Windows suite with actual Widget integration.
+- Linux Go 1.26.2 monitor race test passes in 4.788 seconds. The 128-account/4096-grant/1000-view budget measures p95 1.008 ms, maximum 9.438 ms, 730,878 serialized bytes, 8,108,192 sampled peak heap bytes and zero idle writes. These are bounded workload results, not a native Windows race or physical-disk soak claim.
+- Synthetic binary staging passes actual assistant reply/passive capture, the real coalesced flush, 30 unchanged views and abrupt restart with zero external/monitor-provider requests. Five-model Fast metadata and Fast/priority/Standard forwarding, affinity authorization/idempotency, competing external respawner and forced-failure hash-locked rollback all pass on 48318/48319; all temporary owners exit. An outer PowerShell status check falsely reported Fast failure after its passed receipt; the receipt and released ports verified success without replay. An initial rollback invocation rejected an incorrect baseline filename before executing; the verified exact baseline rerun passed.
+- Matching Widget 0.33 is independently installed with settings/history preserved and both automatic lanes off. Live 48317 remains the prior source `8807b55b`/SHA `8e10e300`; new publication, immediate preflight, impact warning and action-time approval still precede activation. No live account, configuration or provider QA was used.
+
 ## 2026-09-08 23:57:08 -04:00 — independent automatic reset-inventory spacing
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

@@ -138,11 +138,13 @@ floor, failed-attempt restart, account removal, 128-account catch-up and mixed
 manual queues inside the unchanged eight-hour bound, legacy JSON/directory
 compatibility, no unchanged companion writes, malformed/future/oversized state,
 and failure of either pre-dispatch file write. Full Windows Go tests pass with
-the three-real-Widget-client integration enabled. Immutable binary staging,
-installed delivery and action-time-approved activation are still pending; tests
-do not claim deployment. Both live automatic lanes remain off during this item.
+the three-real-Widget-client integration enabled. Clean source `dbfb45e9cc7dee38431bb2caefff436c929434ad` builds with `vcs.modified=false` and SHA-256 `56ff39cdf1f0508f0af56279e2c6d8084f33357b70e3da5a4705478a895f16f9`.
 
-## Delivery checklist
+Linux monitor race passes in 4.788 seconds. For 128 accounts/4096 grants/1000 snapshots, p95 is 1.008 ms, maximum 9.438 ms, serialized state 730,878 bytes, sampled peak heap 8,108,192 bytes and idle writes zero. No native Windows race or physical-disk soak is claimed. Synthetic binary capture/coalesced-flush/restart, five-model Fast forwarding, affinity authorization/idempotency and external-respawner/forced-rollback checks pass on isolated 48318/48319. Real-account requests are zero and all test owners exit.
+
+Widget 0.33 is independently installed with both automatic lanes still off and prior settings/history preserved. Publication and a new action-time-approved protected-router activation remain required; staging is not live deployment. Preserve current `8e10e300` as the hash-locked rollback baseline, not its older predecessor. This item does not change usage classification or any later queued presentation feature.
+
+## Passive-first baseline delivery checklist
 
 - [x] Inspect existing owners; preserve scope and freeze this contract.
 - [x] Implement capture-time truth, normalized observations and durable scheduler.

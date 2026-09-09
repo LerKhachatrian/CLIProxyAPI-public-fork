@@ -433,6 +433,21 @@ func (m *Manager) refreshAuth(ctx context.Context, id string) {
 // failedAccessToken lets concurrent callers reuse a refresh that already replaced the
 // access token that produced the unauthorized response.
 func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessToken string) (*Auth, error) {
+	return m.refreshAuthForRequestGuarded(ctx, id, failedAccessToken, nil)
+}
+
+// RecoverQuotaCredential delegates one rejected usage read to the existing local
+// credential owner. It never waits behind another refresh, crosses a replaced
+// registration, or refreshes a disabled or externally owned credential.
+func (m *Manager) RecoverQuotaCredential(ctx context.Context, failed *Auth) (*Auth, error) {
+	if failed == nil || !strings.EqualFold(failed.Provider, "codex") ||
+		failed.FileName == "" || !authHasRefreshCredential(failed) {
+		return nil, errors.New("quota credential recovery is unavailable")
+	}
+	return m.refreshAuthForRequestGuarded(ctx, failed.ID, authAccessToken(failed), failed)
+}
+
+func (m *Manager) refreshAuthForRequestGuarded(ctx context.Context, id, failedAccessToken string, expected *Auth) (*Auth, error) {
 	if m == nil {
 		return nil, errors.New("auth manager is nil")
 	}
@@ -450,8 +465,17 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 		lock = &authRefreshLock{}
 		m.refreshLocks.Store(id, lock)
 	}
-	lock.mu.Lock()
+	if expected != nil {
+		if !lock.mu.TryLock() {
+			return nil, errors.New("credential recovery is already running")
+		}
+	} else {
+		lock.mu.Lock()
+	}
 	defer lock.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	m.mu.RLock()
 	auth := m.auths[id]
@@ -465,12 +489,20 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 	if auth == nil || exec == nil {
 		return nil, errors.New("auth or executor not found")
 	}
+	if expected != nil && (auth.Disabled || auth.Status == StatusDisabled ||
+		auth.RegistrationEpoch != expected.RegistrationEpoch || auth.Provider != expected.Provider ||
+		authMetadataString(auth, "account_id") != authMetadataString(expected, "account_id")) {
+		return nil, errors.New("quota credential identity changed")
+	}
 
 	// Another request may already have refreshed this credential.
 	if failedAccessToken != "" {
 		if currentToken := authAccessToken(auth); currentToken != "" && currentToken != failedAccessToken {
 			return auth.Clone(), nil
 		}
+	}
+	if expected != nil && auth.NextRefreshAfter.After(time.Now()) {
+		return nil, errors.New("credential recovery cooldown applies")
 	}
 
 	base := auth.Clone()
@@ -531,6 +563,11 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 	}
 	if updated == nil {
 		updated = base.Clone()
+	}
+	if expected != nil && (updated.ID != base.ID || updated.Provider != base.Provider ||
+		updated.RegistrationEpoch != base.RegistrationEpoch ||
+		authMetadataString(updated, "account_id") != authMetadataString(base, "account_id")) {
+		return nil, errors.New("quota credential recovery changed account identity")
 	}
 	// Preserve runtime created by the executor during Refresh.
 	// If executor didn't set one, fall back to the previous runtime.

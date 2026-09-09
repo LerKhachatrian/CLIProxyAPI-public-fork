@@ -296,18 +296,25 @@ func (c *Coordinator) queue(ids []Identity, req Request, now time.Time) error {
 			continue
 		}
 		matched = true
-		if !id.Enabled || id.Blocked || id.RetryAt.After(now) {
+		if !id.Enabled || id.Blocked {
 			continue
 		}
 		e := c.entries[id.Key]
-		if e.RetryAt.After(now) || (c.inFlightKey == id.Key && c.inFlightLane == req.Refresh) {
+		if c.inFlightKey == id.Key && c.inFlightLane == req.Refresh {
 			continue
 		}
 		lane := &e.UsageSchedule
 		if req.Refresh == ResetLane {
 			lane = &e.ResetSchedule
+			if id.RetryAt.After(now) || e.RetryAt.After(now) ||
+				lane.LastAttempt.Add(time.Minute).After(now) || lane.RetryAt.After(now) {
+				continue
+			}
 		}
-		if lane.PendingAt.IsZero() && !lane.LastAttempt.Add(time.Minute).After(now) && !lane.RetryAt.After(now) {
+		// Usage intents survive cooldowns and duplicate-attempt floors. Keep
+		// reset-inventory queuing unchanged; selection still enforces every
+		// dispatch deadline for both lanes.
+		if lane.PendingAt.IsZero() {
 			lane.PendingAt = now
 			c.dirty[id.Key] = true
 		}
@@ -379,8 +386,9 @@ func (c *Coordinator) selectDue(ids []Identity, p Policy, now time.Time) *candid
 	return &candidates[0]
 }
 
-// Step performs zero or one provider read. Concurrent callers never wait on the
-// provider mutex: they receive the shared cached snapshot with in_flight=true.
+// Step admits zero or one observation operation. The fixed usage adapter may
+// recover one HTTP 401 within its total deadline. Concurrent callers receive
+// the shared cached snapshot with in_flight=true instead of waiting on I/O.
 func (c *Coordinator) Step(ctx context.Context, ids []Identity, req Request, fetch Fetch) (Snapshot, error) {
 	c.mu.Lock()
 	now, p := c.clock(), NormalizePolicy(req.Policy)

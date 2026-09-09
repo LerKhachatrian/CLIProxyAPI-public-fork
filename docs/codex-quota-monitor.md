@@ -265,3 +265,14 @@ and a CONNECT-denying loopback proxy, verifies management
 authentication/strict input, manual-only views and unchanged cache writes, then
 waits for the real coalesced flush before an abrupt restart. It never loads real
 auth or checks live accounts. The existing Fast matrix remains a separate gate.
+
+## Bounded usage recovery and deferred intent (2026-09-09)
+
+This current contract supersedes older statements that categorically prohibit credential recovery during a usage observation or silently discard usage intents during a cooldown.
+
+- A fixed-route usage HTTP 401 without a future Retry-After may ask the existing auth owner for one credential recovery and retry the usage read once. Renewal and the repeated read share the original eight-second deadline.
+- Recovery requires the same enabled, file-backed Codex identity and registration epoch. Reuse a concurrently renewed token, preserve auth-owner backoff, and reject identity replacement before persistence and observation adoption.
+- A renewed plan identity adopts the real observation under the new monitor key. The superseded in-flight entry cannot restore old quota or plan data.
+- Usage intents remain pending across account/lane cooldowns and the duplicate-attempt floor. Selection still enforces one in-flight observation, the configured gap, the six-starts-per-minute ceiling, and the eight-hour pending bound.
+- Reset-inventory queuing retains its original cooldown and recent-attempt guards. Reset reads, 403, 429, and Retry-After responses do not initiate OAuth recovery.
+- Do not clear quota state, alter priorities or affinity, edit credential files directly, or generate model requests merely to refresh balances. Do not log provider bodies or credentials.

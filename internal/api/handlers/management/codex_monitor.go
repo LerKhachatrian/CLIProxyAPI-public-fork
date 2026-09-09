@@ -189,22 +189,62 @@ func (h *Handler) monitorIdentities() ([]codexmonitor.Identity, error) {
 }
 
 func (h *Handler) fetchMonitorObservation(ctx context.Context, id codexmonitor.Identity, kind string) codexmonitor.Result {
+	selected := h.monitorAuth(id.AuthIndex, id.Key)
+	if selected == nil {
+		return codexmonitor.Result{}
+	}
+	current := monitorIdentity(selected, time.Now())
+	if !current.Enabled || current.Blocked || current.RetryAt.After(time.Now()) {
+		return codexmonitor.Result{}
+	}
+	// One shared deadline includes both reads and optional owner recovery. The
+	// monitor owns no token parsing, refresh transport, retries or credentials.
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	result := h.fetchMonitorRead(ctx, selected, kind)
+	if kind != codexmonitor.UsageLane || result.Status != http.StatusUnauthorized ||
+		result.RetryAt.After(time.Now()) || ctx.Err() != nil {
+		return result
+	}
+	h.mu.Lock()
+	manager := h.authManager
+	h.mu.Unlock()
+	if manager == nil {
+		return result
+	}
+	updated, err := manager.RecoverQuotaCredential(ctx, selected)
+	if err != nil || updated == nil || updated.RegistrationEpoch != selected.RegistrationEpoch ||
+		stringValue(updated.Metadata, "account_id") != stringValue(selected.Metadata, "account_id") {
+		return result
+	}
+	key := codexMonitorIdentityKey(updated)
+	updated = h.monitorAuth(id.AuthIndex, key)
+	if updated == nil {
+		return result
+	}
+	current = monitorIdentity(updated, time.Now())
+	if !current.Enabled || current.Blocked || current.RetryAt.After(time.Now()) || ctx.Err() != nil {
+		return result
+	}
+	result = h.fetchMonitorRead(ctx, updated, kind)
+	if key != id.Key {
+		// A plan upgrade changes cache authority. Adopt the observation through
+		// the existing verified-read boundary under its new identity, never the
+		// stale subscription identity captured before credential recovery.
+		if monitor, ids, err := h.monitorInputs(); err == nil {
+			_ = monitor.ObserveRead(ids, key, kind, result)
+		}
+	}
+	return result
+}
+
+func (h *Handler) fetchMonitorRead(ctx context.Context, selected *coreauth.Auth, kind string) codexmonitor.Result {
 	path := "usage"
 	if kind == codexmonitor.ResetLane {
 		path = "rate-limit-reset-credits"
 	} else if kind != codexmonitor.UsageLane {
 		return codexmonitor.Result{}
 	}
-	selected := h.monitorAuth(id.AuthIndex, id.Key)
-	if selected == nil {
-		return codexmonitor.Result{}
-	}
-	current := monitorIdentity(selected, time.Now())
-	if current.Key != id.Key || !current.Enabled || current.Blocked || current.RetryAt.After(time.Now()) {
-		return codexmonitor.Result{}
-	}
-	// No token acquisition/refresh is triggered by monitoring. The normal auth
-	// owner maintains credentials; rejection becomes a bounded observation error.
 	token := tokenValueForAuth(selected)
 	if token == "" {
 		return codexmonitor.Result{Status: 401}

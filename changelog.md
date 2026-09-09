@@ -198,3 +198,17 @@ The full Windows suite passes with the accepted Widget 0.38 source, including bo
 - The callback path re-resolves the target before persistence, verifies the returned account ID or email matches the existing account, preserves allowed operator metadata and runtime attributes, updates only that record, and fails closed with zero mutation for wrong-account, missing, ambiguous, unsupported, changed, or unverifiable targets. Targeted completion does not consume concurrent generic Codex OAuth sessions.
 - Verification passed: `gofmt`; the focused targeted-reauthentication suite covering matching-account replacement, wrong-account zero mutation, metadata preservation, target validation, and concurrent-session safety; a clean server build producing SHA-256 `ac6ab622b0dfd0f2c88d4d719bace9537245ff80d684bef4afe714a69c7a3aca`; staging on `48318`; approved live cutover to `48317`; protected-endpoint `401`; rollback artifact SHA-256 `471c8e9520f56f23c826cdf334877afd7261bbb7022e8515f8149c0eda4d6f72`; and post-reboot confirmation that the same new binary owns `48317`. Config and launcher hashes remained unchanged and rollback was not needed.
 - The broader upstream `go test ./...` run still reports pre-existing failures in plugin install-path, pluginhost snapshot, reasoning replay, and translator compatibility tests outside this change. The changed management package and production server build pass. No real OAuth login was performed and no live auth file was read or mutated.
+
+## 2026-09-09 22:48:01 UTC - Usage credential recovery candidate, delivery pending
+
+Session: 01a08348-fdd5-76a1-8112-2351fbdd7ac9.
+
+Implemented bounded usage-only HTTP 401 recovery through the existing auth owner, guarded identity adoption, and retention of manual refresh intents without bypassing dispatch cooldowns. The full auth and management packages passed, and the real Widget/router contract passed with three clients, 30 repeated refresh clicks, and a 10.086-second observed minimum gap.
+
+The full Go suite is not green: TestFair128AccountBudgetAndNoStartupSweep observed 127 of 128 accounts because deferred queuing unintentionally changed reset-inventory batching. Restricting deferred intents to the usage lane while preserving the original reset guards is pending Ler's confirmation; it has not been applied. No candidate build, commit, push, or live cutover has occurred. No routing, priority, affinity, credential-file, or reset-state operation was performed. Evidence: C:\Users\lerkh\AppData\Local\Temp\codex-usage-refresh-20260909-220202.
+
+## 2026-09-09 23:24:19 UTC - Usage-only correction verified
+
+Session: 01a08348-fdd5-76a1-8112-2351fbdd7ac9.
+
+Ler approved the correction. Deferred intent retention now applies only to usage refresh; all original reset-lane cooldown and recent-attempt guards are preserved. The full Go suite passed with go test ./... -count=1, including the 128-account fairness regression. Updated the current ownership and recovery contract. Binary staging and installed acceptance follow separately; this entry does not claim live deployment.

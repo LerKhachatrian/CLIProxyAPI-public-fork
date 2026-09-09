@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-09 15:24:00 -04:00 — initial reset inventory accepted live
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Deployed clean source `184b4b3c903fce5d6188c7d17a01a92c083e006b`, source tag `ler-live-20260909-184b4b3c`, canonical SHA-256 `a4c620a5be565ab265e79cf40faf5f8e0f75451f0aebab46456b5ba391029f2a`. Fresh hash/owner/health preflight and the approved interruption warning preceded cutover; independent canonical health returns HTTP 200 after its deployment parent exits. The dedicated `cb2e8442` rollback remains retained. No config/auth/account, Desktop, SSH or App Server mutation occurred.
+- Full Windows regression, affected-package Linux Go 1.26.2 race, clean immutable Windows build, synthetic initial-upgrade/failed-attempt/restart, passive activity, Fast, affinity and forced rollback pass. The first cache-replacement test failure remains documented with its unknown OS cause; twenty focused repeats and the full rerun pass. Maximum-pool p95 is 1.0009 ms with zero idle writes; no budget was weakened.
+- Normal Auto attempted all four previously unchecked accounts without manual requests. At 19:23:44 UTC, nine of ten banks are known and Widget shows `~≥18`; zero initial attempts remain pending. One account returned HTTP 401, so its balance stays unknown and needs separate account-recovery review. No complete-19 or lost-credit claim, forced retry, credential inspection or OAuth action is inferred.
+- Installed Widget 0.38 remains independently healthy without a rebuild/restart; both Auto settings, common gap, Strong=false and all prior history are preserved. Final acceptance is Markdown-only, supersedes the pending delivery gates below, and retains human headed/DPI/actual Restart checks in the existing Widget checklist. See `docs/codex-quota-monitor.md` for exact evidence and limits.
+
 ## 2026-09-09 15:02:00 -04:00 — paced initial reset-inventory bootstrap
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

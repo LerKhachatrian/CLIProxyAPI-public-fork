@@ -62,8 +62,19 @@ type Identity struct {
 	Blocked   bool
 	RetryAt   time.Time
 	Priority  int
-	Active    bool
+	Active    bool // compatible combined active/likely-next classification
+	InUse     bool // actual in-flight/recent request activity, never priority alone
 	Passive   *Usage
+}
+
+func (id Identity) activityClass() string {
+	if id.InUse {
+		return "active"
+	}
+	if id.Active {
+		return "likely_next"
+	}
+	return "reserve"
 }
 
 type Policy struct {
@@ -109,6 +120,7 @@ type Account struct {
 	ResetSchedule Lane   `json:"reset_schedule"`
 	Blocked       bool   `json:"blocked"`
 	Active        bool   `json:"active"`
+	Activity      string `json:"activity"` // additive display-only classification; not persisted
 }
 
 type Snapshot struct {

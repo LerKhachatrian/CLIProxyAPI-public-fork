@@ -11,6 +11,7 @@ import (
 func TestMaximumPoolLocalSnapshotBudget(t *testing.T) {
 	c, store, ids, now := rig(t, MaxAccounts)
 	for i := range ids {
+		ids[i].Active, ids[i].InUse = true, true
 		ids[i].Passive = usageAt(*now)
 	}
 	if _, err := c.Snapshot(ids, Policy{}); err != nil {

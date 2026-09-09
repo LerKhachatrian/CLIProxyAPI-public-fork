@@ -3,20 +3,171 @@ package management
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/api/handlers/management/codexmonitor"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 )
 
 type monitorRoundTripper func(*http.Request) (*http.Response, error)
+
+type monitorActivityExecutor struct {
+	coreauth.ProviderExecutor // Unused paths fail loudly instead of doing real I/O.
+	started                   chan string
+	release                   <-chan struct{}
+}
+
+func (*monitorActivityExecutor) Identifier() string { return "codex" }
+func (e *monitorActivityExecutor) Execute(ctx context.Context, a *coreauth.Auth, _ cliproxyexecutor.Request, _ cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
+	cliproxyexecutor.MarkUpstreamAttempt(ctx)
+	e.started <- a.ID
+	select {
+	case <-e.release:
+		return cliproxyexecutor.Response{Payload: []byte(`{"synthetic":true}`)}, nil
+	case <-ctx.Done():
+		return cliproxyexecutor.Response{}, ctx.Err()
+	}
+}
+
+func TestMonitorActivityTracksEveryRoundRobinAccount(t *testing.T) {
+	release := make(chan struct{})
+	closeRelease := sync.OnceFunc(func() { close(release) })
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	defer closeRelease()
+	executor := &monitorActivityExecutor{started: make(chan string, 8), release: release}
+	m := coreauth.NewManager(nil, &coreauth.RoundRobinSelector{}, nil)
+	m.SetRetryConfig(0, 0, 1)
+	m.RegisterExecutor(executor)
+	h := &Handler{authManager: m, configFilePath: filepath.Join(t.TempDir(), "synthetic.yaml")}
+	model := "synthetic-round-robin-activity"
+	accounts := make([]*coreauth.Auth, 7)
+	for i := range accounts {
+		priority := "1000"
+		if i == 4 || i == 5 {
+			priority = fmt.Sprint(9000 - 100*i)
+		} else if i == 6 {
+			priority = "100"
+		}
+		a, err := m.Register(ctx, &coreauth.Auth{ID: fmt.Sprintf("synthetic-round-robin-%d", i), Provider: "codex", Status: coreauth.StatusActive,
+			Attributes: map[string]string{"priority": priority}, Metadata: map[string]any{"account_id": fmt.Sprint(i), "plan_type": "pro"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		accounts[i] = a
+		// Four equal-priority accounts serve this model. Two unused high-priority
+		// accounts are likely-next for the pool; the last account is reserve.
+		if i < 4 {
+			registry.GetGlobalRegistry().RegisterClient(a.ID, "codex", []*registry.ModelInfo{{ID: model}})
+			t.Cleanup(func() { registry.GetGlobalRegistry().UnregisterClient(a.ID) })
+		}
+	}
+	var workers sync.WaitGroup
+	done := make(chan error, 8)
+	t.Cleanup(func() {
+		cancel()
+		closeRelease()
+		workers.Wait()
+		if err := h.CloseCodexMonitor(); err != nil {
+			t.Error(err)
+		}
+	})
+	selected := map[string]int{}
+	for i := 0; i < 8; i++ {
+		workers.Go(func() {
+			_, err := m.Execute(ctx, []string{"codex"}, cliproxyexecutor.Request{Model: model}, cliproxyexecutor.Options{})
+			done <- err
+		})
+		select {
+		case id := <-executor.started:
+			selected[id]++
+		case err := <-done:
+			t.Fatal("execution returned before the held transport", err)
+		case <-ctx.Done():
+			t.Fatal("round-robin transport did not start")
+		}
+	}
+	if len(selected) != 4 {
+		t.Fatalf("round robin selected %d accounts, want 4", len(selected))
+	}
+	for _, a := range accounts[:4] {
+		if selected[a.ID] != 2 || a.RequestActivitySnapshot().InFlight != 2 {
+			t.Fatal("per-account concurrent activity collapsed")
+		}
+	}
+	checkClasses := func() {
+		t.Helper()
+		monitor, ids, err := h.monitorInputs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := monitor.Snapshot(ids, codexmonitor.Policy{UsageSeconds: 1800})
+		if err != nil {
+			t.Fatal(err)
+		}
+		classes := map[string]int{}
+		for _, account := range snapshot.Accounts {
+			classes[account.Activity]++
+		}
+		if classes["active"] != 4 || classes["likely_next"] != 2 || classes["reserve"] != 1 {
+			t.Fatalf("actual/likely-next/reserve classes = %v", classes)
+		}
+	}
+	checkClasses()
+	closeRelease()
+	workers.Wait()
+	for i := 0; i < 8; i++ {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, a := range accounts[:4] {
+		if got := a.RequestActivitySnapshot(); got.InFlight != 0 || got.LastCompleted.IsZero() {
+			t.Fatal("completed round-robin activity was lost")
+		}
+	}
+	checkClasses()
+}
+
+func TestMonitorActivityWindowIsExactAndDistinctFromPriority(t *testing.T) {
+	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		name     string
+		activity coreauth.RequestActivitySnapshot
+		want     bool
+	}{
+		{"unused", coreauth.RequestActivitySnapshot{}, false},
+		{"inflight", coreauth.RequestActivitySnapshot{InFlight: 3}, true},
+		{"recent", coreauth.RequestActivitySnapshot{LastCompleted: now.Add(-time.Hour + time.Nanosecond)}, true},
+		{"expired", coreauth.RequestActivitySnapshot{LastCompleted: now.Add(-time.Hour)}, false},
+		{"future", coreauth.RequestActivitySnapshot{LastCompleted: now.Add(time.Second)}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if recentMonitorActivity(test.activity, now) != test.want {
+				t.Fatal("activity boundary mismatch")
+			}
+		})
+	}
+	h, a := monitorTestHandler(t)
+	// Legacy completed/preparation records and high priority are not evidence of
+	// a transport-backed in-flight/recent scope.
+	h.authManager.MarkResult(context.Background(), coreauth.Result{AuthID: a.ID, Provider: "codex", Success: true})
+	ids, err := h.monitorIdentities()
+	if err != nil || len(ids) != 1 || !ids[0].Active || ids[0].InUse {
+		t.Fatal("likely-next priority or legacy buckets became actual activity", err)
+	}
+}
 
 func (f monitorRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 

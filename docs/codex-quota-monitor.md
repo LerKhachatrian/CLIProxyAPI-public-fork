@@ -39,9 +39,11 @@ that these intervals prevent one.
   A whole-lane batch coalesces until its final pending/in-flight account finishes;
   its bounded eight-hour lifetime covers two maximum-gap 128-account lanes.
   Expiry becomes an explicit refresh-expired state, not a silently lost request.
-- Active accounts and the two highest-priority eligible candidates use a
-  configurable 30-minute fallback target with 20–40-minute jitter at the default.
-  Other accounts use a roughly daily interval. Recent useful passive main-window
+- Actually active accounts use 5–10-minute fallback. The two highest-priority
+  eligible likely-next candidates use a configurable 30-minute target with
+  20–40-minute jitter at the default; reserves use 20–28 hours. Every in-flight
+  account and every account used within the last hour qualifies as active,
+  including round-robin use. Recent useful passive main-window
   observations postpone fallback; missing coverage still remains explicit.
 - Reset inventory is independent: daily, weekly, or manual-only. Every attempt,
   including failure, advances automatic eligibility by at least 24 hours (or the
@@ -102,6 +104,26 @@ that these intervals prevent one.
   observation and every existing Retry-After/cadence floor remains intact.
 
 ## Frozen acceptance contract (before implementation)
+
+### Follow-up item 4: activity-aware fallback design — 2026-09-09
+
+Session `01a077c3-26f5-7242-9d03-424a32cafc47`. The preceding Widget tooltip item is delivered separately. This item is a subfeature of the existing auth request lifecycle and monitor scheduler; its live activation remains gated by fresh staging, hash-locked preflight, an interruption warning and action-time approval.
+
+The current adapter combines six completed-request buckets with the two highest eligible priorities. Buckets miss requests that are still running, and the combined flag cannot distinguish real work from likely-next candidates. Home's execution registry is not a suitable replacement because it does not cover the local selector path. Extend the existing transport-attempt context and auth lifecycle instead: one memory-only activity cell per registered Codex identity, shared by its clones. An actual upstream transport attempt starts a once-only scope; completion, error, cancellation or stream retirement ends it. Selection, preparation, token counting, management reads and idle WebSocket connections do not create activity. No request body, token, label or address enters this cell. Normal metadata/priority refresh preserves it, while account replacement, removal/re-registration, disabling and process restart retire it. No generation-time disk/provider I/O, new ticker, monitor worker or per-account poller is added.
+
+An account is actually active while at least one request scope is in flight or for exactly one hour after its last completed scope. Every matching account qualifies, including concurrently used and round-robin subsets. The top two eligible priority candidates are independently likely-next; active takes precedence. Blocked, disabled and Retry-After guards remain authoritative.
+
+Implementation review tightened replacement detection to cover attribute-based email and ID-token-only account/plan changes, not just explicit metadata. A changed ID token is parsed through the existing Codex parser only at the auth-update boundary, with a 64 KiB input cap. Stable account, plan, email and subject claims preserve ordinary refreshes despite changed issuance or signatures; missing, malformed or oversized changed tokens conservatively retire the cell. This is display-state invalidation, not token authorization, and introduces no decoding on attempts or monitor snapshots.
+
+With usage Auto enabled, active fallback is 5–10 minutes, likely-next retains the selected target (20–40 minutes at the 30-minute default), and reserve fallback remains 20–28 hours. Manual-only still prevents all automatic usage reads. Active jitter is a stable pseudo-random draw from the opaque account key and latest real observation/attempt timestamp; it changes with that scheduling epoch, not with each viewer or process restart. This permits tightening an older long deadline without adding a new persisted schema or repeatedly redrawing it. A newly active account without any reading/attempt receives a bounded 5–10-minute deadline. Existing likely-next cold-start spreading remains unchanged.
+
+Promotion can only tighten the existing automatic deadline. Demotion retains an already scheduled check, then the next genuine observation or attempt chooses the slower class interval; it never continually postpones overdue work. Fresh useful passive data postpones fallback from its actual capture time. Local views, request activity without a new quota reading, and partial/expired signals cannot manufacture freshness or continually push the deadline away. Every provider attempt retains the persisted duplicate-attempt floor, shared one-flight/10–60-second/six-per-minute budget and provider cooldowns. Reset inventory and its independent 60–120-second floor do not change. The strict v1 cache and rollback compatibility remain intact; runtime-only classification is not another durable authority.
+
+Cross-client verification exposed a pre-existing admission/dispatch timing mismatch: variable synchronous persistence time could shorten the actual inter-dispatch gap. A deterministic one-second delayed-store test reproduced a nine-second gap behind a ten-second admission floor. The coordinator now corrects the common start/deadline and the unchanged automatic-reset draw from the post-persistence dispatch boundary, saving that correction before clearing the durable interrupted claim. One-flight ownership prevents a competing read during this correction. It adds at most one small common-control write per dispatched read, plus a changed reset companion for an automatic reset; unchanged local views still write nothing. No threshold is relaxed and no polling or waiting thread is introduced.
+
+An interrupted cached claim cannot prove its actual dispatch time. On first recovery view, before retiring removed identities, it receives one conservative maximum shared-gap fence (60 seconds) and, for an interrupted reset, a maximum automatic-reset fence (120 seconds). Those deadlines are persisted once and ordinary views cannot slide them; recovery persistence failure blocks reads and preserves the claim. Completed attempts retain their corrected deadlines across normal restart without this fence. This deliberately trades one bounded delay after uncertain interruption for burst safety, using the existing strict v1 fields and reset companion rather than a second scheduler or schema migration.
+
+Before release, require synthetic tests for actual transport versus selection/preparation/counting, long HTTP and streamed/WS requests, concurrent scopes, cancellation and duplicate cleanup, identity replacement and priority-only updates. Fake-clock scheduler tests cover exact class ranges, repeated views/restart, promotion/demotion, passive supersession, missing main windows, blocked identities, multiple clients and unchanged reset behavior. Retain the existing 128-account/4096-grant snapshot p95 <250 ms, zero idle writes, no new polling process/timer, Widget heartbeat <100 ms and close <11 seconds. Use the existing synthetic binary staging and real Widget verifiers; no live generation, reset or account experiment is QA. Full tests/builds, clean fork publication, installed Widget description update and independent live acceptance precede completion.
 
 Baseline: Widget 0.31 performed up to two provider GETs per eligible account per
 five-minute-plus-sweep cycle. Its memory cache and schedule did not survive
@@ -201,8 +223,9 @@ acceptance. Completion dispatch follows final scoped documentation publication.
 
 `python test/codex_monitor_staging.py --candidate <absolute-EXE>
 --evidence-dir <fresh-absolute-directory>` is the feature's binary staging entry.
-It restricts both listeners to 48318/48319, uses one synthetic assistant reply
-with quota headers and a CONNECT-denying loopback proxy, verifies management
+It restricts both listeners to 48318/48319, uses two synthetic assistant replies
+(held HTTP bootstrap with quota headers and a held stream without new quota)
+and a CONNECT-denying loopback proxy, verifies management
 authentication/strict input, manual-only views and unchanged cache writes, then
 waits for the real coalesced flush before an abrupt restart. It never loads real
 auth or checks live accounts. The existing Fast matrix remains a separate gate.

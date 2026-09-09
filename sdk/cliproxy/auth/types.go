@@ -101,8 +101,9 @@ type Auth struct {
 	Success int64 `json:"-"`
 	Failed  int64 `json:"-"`
 
-	recentRequests recentRequestRing `json:"-"`
-	indexAssigned  bool              `json:"-"`
+	recentRequests  recentRequestRing `json:"-"`
+	requestActivity *requestActivity  `json:"-"`
+	indexAssigned   bool              `json:"-"`
 }
 
 const (

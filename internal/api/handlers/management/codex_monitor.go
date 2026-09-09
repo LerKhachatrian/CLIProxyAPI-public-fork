@@ -23,6 +23,7 @@ import (
 // The transport is intentionally narrow. Normal management auth protects this
 // route, and neither caller-controlled URLs nor token/proxy overrides exist.
 const codexMonitorProviderBase = "https://chatgpt.com/backend-api/wham/"
+const codexMonitorActivityWindow = time.Hour
 
 func (h *Handler) monitor() (*codexmonitor.Coordinator, error) {
 	h.codexMonitorMu.Lock()
@@ -140,11 +141,15 @@ func monitorIdentity(a *coreauth.Auth, now time.Time) codexmonitor.Identity {
 			id.Priority, _ = strconv.Atoi(value)
 		}
 	}
-	buckets := a.RecentRequestsSnapshot(now)
-	for _, bucket := range buckets[max(0, len(buckets)-6):] {
-		id.Active = id.Active || bucket.Success > 0 || bucket.Failed > 0
-	}
+	activity := a.RequestActivitySnapshot()
+	id.InUse = recentMonitorActivity(activity, now)
+	id.Active = id.InUse
 	return id
+}
+
+func recentMonitorActivity(activity coreauth.RequestActivitySnapshot, now time.Time) bool {
+	return activity.InFlight > 0 || !activity.LastCompleted.IsZero() && !activity.LastCompleted.After(now) &&
+		now.Sub(activity.LastCompleted) < codexMonitorActivityWindow
 }
 
 func (h *Handler) monitorIdentities() ([]codexmonitor.Identity, error) {

@@ -11,6 +11,7 @@ the synthetic loopback proxy. No installed router, auth file or live key is used
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import hashlib
 import http.client
@@ -49,8 +50,8 @@ def validate(candidate: Path, evidence: Path, proxy_port: int, capture_port: int
             probe.bind(("127.0.0.1", port))
 
 
-def request(port, method, path, body=None, *, authenticated=True, raw=None):
-    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+def request(port, method, path, body=None, *, authenticated=True, raw=None, decode_json=True):
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
     headers = {"Content-Type": "application/json"}
     if authenticated:
         headers["Authorization"] = "Bearer " + KEY
@@ -61,7 +62,7 @@ def request(port, method, path, body=None, *, authenticated=True, raw=None):
         payload = response.read(2 * 1024 * 1024 + 1)
         if len(payload) > 2 * 1024 * 1024:
             raise AssertionError("Staging response exceeded the bounded contract")
-        return response.status, json.loads(payload)
+        return response.status, json.loads(payload) if decode_json else payload
     finally:
         connection.close()
 
@@ -84,7 +85,18 @@ class Fixture(HTTPServer):
     def __init__(self, port):
         self.generations = 0
         self.forbidden = 0
+        self.arm()
         super().__init__(("127.0.0.1", port), FixtureHandler)
+
+    def arm(self):
+        self.started = threading.Event()
+        self.release_bootstrap = threading.Event()
+        self.first_payload = threading.Event()
+        self.release_completion = threading.Event()
+
+    def release(self):
+        self.release_bootstrap.set()
+        self.release_completion.set()
 
 
 class FixtureHandler(BaseHTTPRequestHandler):
@@ -106,7 +118,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         length = int(self.headers.get("Content-Length", "0"))
-        if not 0 < length <= 4096 or self.server.generations >= 1:
+        if not 0 < length <= 4096 or self.server.generations >= 2:
             self.server.forbidden += 1
             self.send_error(400)
             return
@@ -116,21 +128,36 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self.send_error(400)
             return
         self.server.generations += 1
+        self.server.started.set()
+        if not self.server.release_bootstrap.wait(10):
+            self.server.forbidden += 1
+            self.send_error(504)
+            return
         payload = {"type": "response.completed", "response": {
             "id": "resp_synthetic_monitor", "object": "response", "status": "completed",
             "model": "gpt-5.6-sol", "output": [{"type": "message", "role": "assistant",
                 "content": [{"type": "output_text", "text": ACK}]}],
             "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}}}
+        prefix = b'data: {"type":"response.output_text.delta","delta":"synthetic"}\n\n'
         encoded = ("data: " + json.dumps(payload) + "\n\n").encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Content-Length", str(len(encoded)))
-        for prefix, used, minutes, reset in (("primary", 25, 300, 15000), ("secondary", 40, 10080, 400000)):
-            self.send_header(f"x-codex-{prefix}-used-percent", str(used))
-            self.send_header(f"x-codex-{prefix}-window-minutes", str(minutes))
-            self.send_header(f"x-codex-{prefix}-reset-after-seconds", str(reset))
-        self.send_header("x-codex-plan-type", "pro")
+        self.send_header("Content-Length", str(len(prefix) + len(encoded)))
+        # The first generation supplies useful passive quota. The held stream
+        # deliberately supplies none: activity must not manufacture freshness.
+        if self.server.generations == 1:
+            for name, used, minutes, reset in (("primary", 25, 300, 15000), ("secondary", 40, 10080, 400000)):
+                self.send_header(f"x-codex-{name}-used-percent", str(used))
+                self.send_header(f"x-codex-{name}-window-minutes", str(minutes))
+                self.send_header(f"x-codex-{name}-reset-after-seconds", str(reset))
+            self.send_header("x-codex-plan-type", "pro")
         self.end_headers()
+        self.wfile.write(prefix)
+        self.wfile.flush()
+        self.server.first_payload.set()
+        if not self.server.release_completion.wait(10):
+            self.server.forbidden += 1
+            return
         self.wfile.write(encoded)
 
 
@@ -215,19 +242,57 @@ codex-api-key:
         assert re.fullmatch(r"[0-9a-f]{64}", row["identity"])
         return row
 
+    def held_generation(streamed, previous_usage=None):
+        fixture.arm()
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="synthetic-generation") as client:
+            future = client.submit(request, args.proxy_port, "POST", "/v1/responses", {
+                "model": "gpt-5.6-sol", "input": "SYNTHETIC_MONITOR_STAGE_REQUEST", "stream": streamed},
+                decode_json=not streamed)
+            try:
+                assert fixture.started.wait(5), "Generation never reached the loopback transport"
+                # Actual transport, including before headers/first payload, is
+                # activity. Both client lanes are manual-only throughout QA.
+                waiting = view("POST", MANUAL)
+                assert waiting["activity"] == "active"
+                if previous_usage is not None:
+                    assert waiting["usage"] == previous_usage
+                fixture.release_bootstrap.set()
+                assert fixture.first_payload.wait(5), "Synthetic first payload was not sent"
+                assert not future.done(), "Held request retired at headers/first payload"
+                deadline = None
+                for _ in range(10):
+                    row = view("POST", MANUAL)
+                    assert row["activity"] == "active"
+                    if previous_usage is not None:
+                        assert row["usage"] == previous_usage
+                        current = row["usage_schedule"]["due_at"]
+                        assert deadline is None or deadline == current
+                        deadline = current
+            finally:
+                fixture.release()
+            status, reply = future.result(timeout=10)
+        assert status == 200
+        if streamed:
+            events = [json.loads(line[6:]) for line in reply.decode().splitlines()
+                      if line.startswith("data: ") and line != "data: [DONE]"]
+            completed = [event["response"] for event in events if event.get("type") == "response.completed"]
+            assert len(completed) == 1, "Missing completed synthetic stream"
+            reply = completed[0]
+        texts = [part.get("text") for item in reply.get("output", []) if item.get("role") == "assistant"
+                 for part in item.get("content", []) if part.get("type") == "output_text"]
+        assert texts == [ACK], "Missing actual synthetic assistant reply"
+        assert view()["activity"] == "active", "Completion lost recent activity"
+        receipt["phases"].append("held-stream-activity-without-new-quota" if streamed else "held-http-bootstrap-activity")
+
     try:
         start()
         assert request(args.proxy_port, "GET", MONITOR, authenticated=False)[0] == 401
         assert request(args.proxy_port, "POST", MONITOR, raw='{"refresh":"usage","refresh":"resets"}')[0] == 400
         initial = view("POST", MANUAL)
         assert not initial.get("usage") and not initial.get("resets")
+        assert initial["activity"] == "likely_next"
         receipt["phases"].append("authenticated-manual-only-empty-observation-no-check")
-        status, reply = request(args.proxy_port, "POST", "/v1/responses", {
-            "model": "gpt-5.6-sol", "input": "SYNTHETIC_MONITOR_STAGE_REQUEST"})
-        assert status == 200
-        texts = [part.get("text") for item in reply.get("output", []) if item.get("role") == "assistant"
-                 for part in item.get("content", []) if part.get("type") == "output_text"]
-        assert texts == [ACK], "Missing actual synthetic assistant reply"
+        held_generation(False)
         observed = view()
         usage = observed["usage"]
         assert usage["source"] == "passive" and usage["plan_type"] == "pro"
@@ -235,6 +300,10 @@ codex-api-key:
         assert not observed.get("resets")
         captured = datetime.fromisoformat(usage["observed_at"])
         assert 0 <= (datetime.now(timezone.utc) - captured).total_seconds() < 15
+        due = datetime.fromisoformat(observed["usage_schedule"]["due_at"])
+        assert 300 <= (due - captured).total_seconds() < 600
+        held_generation(True, usage)
+        assert view()["usage"] == usage
         cache = evidence / ".config.yaml.quota-monitor-v1"
         # Passive display writes are coalesced for one minute; unlike provider
         # attempt floors they are not synchronously durable on every local view.
@@ -256,18 +325,23 @@ codex-api-key:
         receipt["phases"].append("normal-response-passive-capture-30-cached-views-no-writes")
         stop()
         start()
-        assert view("POST", MANUAL)["usage"] == usage
+        restarted = view("POST", MANUAL)
+        assert restarted["usage"] == usage and restarted["activity"] == "likely_next"
+        assert restarted["usage_schedule"]["due_at"] == observed["usage_schedule"]["due_at"]
         assert cache_fingerprint(cache) == baseline
-        assert fixture.generations == 1 and fixture.forbidden == 0
+        assert fixture.generations == 2 and fixture.forbidden == 0
         receipt.update(status="passed", assistant_ack=ACK, synthetic_generations=fixture.generations,
                        forbidden_external_attempts=fixture.forbidden, monitor_provider_reads=0,
                        cache_files=len(baseline), repeated_views=30, unchanged_cache_writes=0,
-                       passive_capture_preserved=True, protected_port_untouched=True)
+                       passive_capture_preserved=True, protected_port_untouched=True,
+                       active_fallback_seconds=(due - captured).total_seconds(),
+                       activity_runtime_only=True, held_http_and_stream_passed=True)
         receipt["phases"].append("abrupt-restart-keeps-original-capture-and-manual-only")
     except BaseException as error:
         receipt.update(status="failed", error_type=type(error).__name__)
         raise
     finally:
+        fixture.release()
         stop()
         fixture.shutdown()
         fixture.server_close()

@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/api/handlers/management/codexmonitor"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
 
@@ -54,12 +55,31 @@ func TestCodexMonitorWidgetE2E(t *testing.T) {
 	}
 	var mu sync.Mutex
 	var starts []time.Time
+	var admitted []time.Time
 	usageCalls := 0
-	h.codexMonitorTransport = func(*coreauth.Auth) http.RoundTripper {
+	h.codexMonitorTransport = func(selected *coreauth.Auth) http.RoundTripper {
 		return monitorRoundTripper(func(req *http.Request) (*http.Response, error) {
+			arrived := time.Now()
+			// Observe the persisted scheduling claim separately from entry into
+			// this synthetic transport; intervening fsync cost is not constant.
+			monitor, ids, err := h.monitorInputs()
+			if err != nil {
+				return nil, err
+			}
+			snapshot, err := monitor.Snapshot(ids, codexmonitor.Policy{})
+			if err != nil {
+				return nil, err
+			}
+			var claim time.Time
+			for _, row := range snapshot.Accounts {
+				if row.AuthIndex == selected.Index {
+					claim = row.ResetSchedule.LastAttempt
+				}
+			}
 			mu.Lock()
 			defer mu.Unlock()
-			starts = append(starts, time.Now())
+			starts = append(starts, arrived)
+			admitted = append(admitted, claim)
 			if strings.HasSuffix(req.URL.Path, "/usage") {
 				usageCalls++
 			}
@@ -119,6 +139,12 @@ func TestCodexMonitorWidgetE2E(t *testing.T) {
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	if err := cmd.Run(); err != nil {
+		mu.Lock()
+		if len(starts) == 2 && len(admitted) == 2 {
+			t.Logf("WIDGET_PACING_DIAGNOSTIC admission_gap=%s arrival_gap=%s first_offset=%s second_offset=%s",
+				admitted[1].Sub(admitted[0]), starts[1].Sub(starts[0]), starts[0].Sub(admitted[0]), starts[1].Sub(admitted[1]))
+		}
+		mu.Unlock()
 		t.Fatalf("Widget contract: %v\n%.8000s", err, output.String())
 	}
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")

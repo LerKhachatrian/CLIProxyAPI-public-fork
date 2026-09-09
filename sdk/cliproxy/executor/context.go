@@ -8,6 +8,7 @@ import (
 type downstreamWebsocketContextKey struct{}
 type requireUpstreamWebsocketContextKey struct{}
 type upstreamAttemptTrackerContextKey struct{}
+type upstreamAttemptObserverContextKey struct{}
 
 type upstreamAttemptTracker struct {
 	attempted atomic.Bool
@@ -57,6 +58,17 @@ func WithUpstreamAttemptTracker(ctx context.Context) context.Context {
 	return context.WithValue(ctx, upstreamAttemptTrackerContextKey{}, &upstreamAttemptTracker{})
 }
 
+// WithUpstreamAttemptObserver observes actual transport attempts inside an
+// execution lifetime. Fresh retry trackers inherit it; the owner must make its
+// callback bounded, nonblocking and idempotent. No payload or credential crosses
+// this boundary, and the observer cannot affect attempt/routing decisions.
+func WithUpstreamAttemptObserver(ctx context.Context, observer func()) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, upstreamAttemptObserverContextKey{}, observer)
+}
+
 // MarkUpstreamAttempt records that the provider execution reached an upstream transport boundary.
 func MarkUpstreamAttempt(ctx context.Context) {
 	if ctx == nil {
@@ -66,7 +78,11 @@ func MarkUpstreamAttempt(ctx context.Context) {
 	if !ok || tracker == nil {
 		return
 	}
-	tracker.attempted.Store(true)
+	if !tracker.attempted.Swap(true) {
+		if observer, ok := ctx.Value(upstreamAttemptObserverContextKey{}).(func()); ok && observer != nil {
+			observer()
+		}
+	}
 }
 
 // UpstreamAttempted reports whether the tracked provider execution reached an upstream transport boundary.

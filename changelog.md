@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-09 07:58:00 -04:00 — activity-aware usage fallback implementation
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Added runtime-only, transport-backed activity to the existing auth lifecycle. Every in-flight/recently completed Codex account gets stable 5–10-minute fallback; likely-next keeps its selected target and reserves keep 20–28 hours. Shared request pacing, passive capture truth, reset scheduling and strict v1 cache compatibility are unchanged.
+- Normal refresh preserves activity; replacement, disabling and reload retire it. Changed ID tokens are inspected only at the bounded auth-update boundary with the existing parser, comparing stable identity claims rather than expiry/signature fields. Selection, preparation, token counting and local snapshots cannot create generation activity or provider I/O.
+- Focused lifecycle/scheduler/budget tests and the full Windows Go suite pass, including real four-account round-robin Manager calls, held WebSocket execution/stream/cancellation and the actual three-Widget-client contract. The initial full-run spacing failure is retained: a deterministic delayed-store test reproduced a nine-second dispatch gap behind a ten-second admission floor. The scheduler now corrects its durable start budget after pre-dispatch persistence, preserves the sampled automatic-reset interval and fences interrupted claims conservatively on recovery. Slow-store, correction-write failure, restart/removal and independent-lane regressions pass without weakening the ten-second assertion.
+- Widget 0.38's accepted-source full suite passes 549 tests; its 128-account toggle maximum is 91.863 ms and stalled-I/O close is 9.906 seconds. Its canonical package is built, while race, binary/native staging, publication, installation and separately approved protected-router activation remain delivery gates. This is not live acceptance.
+
 ## 2026-09-09 01:02:00 -04:00 — accepted live automatic reset spacing
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

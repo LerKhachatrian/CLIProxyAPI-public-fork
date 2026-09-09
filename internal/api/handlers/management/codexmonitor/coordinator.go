@@ -2,6 +2,8 @@ package codexmonitor
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"math/rand/v2"
 	"sort"
@@ -23,6 +25,8 @@ type Coordinator struct {
 	clock        func() time.Time
 	random       func(int64) int64
 	storageError bool
+	recoverRead  bool
+	recoverReset bool
 }
 
 func New(store Store) (*Coordinator, error) {
@@ -31,7 +35,12 @@ func New(store Store) (*Coordinator, error) {
 		_ = store.Close()
 		return nil, err
 	}
-	return &Coordinator{store: store, state: state, entries: entries, dirty: map[string]bool{}, clock: time.Now, random: rand.Int64N}, nil
+	c := &Coordinator{store: store, state: state, entries: entries, dirty: map[string]bool{}, clock: time.Now, random: rand.Int64N}
+	for _, entry := range entries {
+		c.recoverRead = c.recoverRead || entry.UsageSchedule.Error == "interrupted_check" || entry.ResetSchedule.Error == "interrupted_check"
+		c.recoverReset = c.recoverReset || entry.ResetSchedule.Error == "interrupted_check"
+	}
+	return c, nil
 }
 
 // Close never releases the OS lock while a request still owns provider I/O.
@@ -72,6 +81,9 @@ func (c *Coordinator) reconcile(ids []Identity, p Policy, now time.Time) error {
 		}
 		keys[id.Key], indexes[id.AuthIndex] = id.Enabled, true
 	}
+	if err := c.recoverDispatchBudget(now); err != nil {
+		return err
+	}
 	for key := range c.entries {
 		if !keys[key] {
 			// Drop authority in memory even when deletion cannot yet be persisted.
@@ -92,15 +104,20 @@ func (c *Coordinator) reconcile(ids []Identity, p Policy, now time.Time) error {
 		if e == nil {
 			e = &Entry{Schema: 1, Key: id.Key, Active: id.Active}
 			delay := c.jitter(24*time.Hour, 0, 1)
-			if id.Active {
+			if id.InUse {
+				delay = activeUsageDelay(id.Key, time.Time{})
+			} else if id.Active {
 				delay = c.jitter(5*time.Minute, .2, 1)
 			}
 			e.UsageSchedule.DueAt = now.Add(delay)
 			e.ResetSchedule.DueAt = now.Add(c.jitter(24*time.Hour, 0, 1))
 			c.entries[id.Key], c.dirty[id.Key] = e, true
 		}
-		if id.Active && !e.Active {
+		if id.Active && !id.InUse && !e.Active {
 			soon := now.Add(c.jitter(5*time.Minute, .2, 1))
+			if anchor := usageAnchor(e); !anchor.IsZero() {
+				soon = anchor.Add(c.usageDelay(id, p, anchor))
+			}
 			if soon.Before(e.UsageSchedule.DueAt) {
 				e.UsageSchedule.DueAt = soon
 			}
@@ -116,10 +133,30 @@ func (c *Coordinator) reconcile(ids []Identity, p Policy, now time.Time) error {
 				// separately observed monitoring/provider Retry-After deadline.
 				e.UsageSchedule.Error = ""
 				e.UsageSchedule.ErrorAt = time.Time{}
-				e.UsageSchedule.DueAt = u.ObservedAt.Add(c.usageDelay(id.Active, p))
+				anchor := u.ObservedAt
+				if id.InUse && e.UsageSchedule.LastAttempt.After(anchor) {
+					anchor = e.UsageSchedule.LastAttempt
+				}
+				e.UsageSchedule.DueAt = anchor.Add(c.usageDelay(id, p, anchor))
 				observeRecovery(e, u.ObservedAt)
 			}
 			c.dirty[id.Key] = true
+		}
+		if id.InUse {
+			// Tighten an old reserve/likely-next deadline without another durable
+			// field or per-view random draw. The scheduling epoch changes only on
+			// a real observation/attempt, not on ordinary request activity. A
+			// demotion retains its already-scheduled check and slows the next one.
+			anchor := usageAnchor(e)
+			base := anchor
+			if base.IsZero() {
+				base = now
+			}
+			soon := base.Add(activeUsageDelay(id.Key, anchor))
+			if soon.Before(e.UsageSchedule.DueAt) {
+				e.UsageSchedule.DueAt = soon
+				c.dirty[id.Key] = true
+			}
 		}
 		for _, lane := range []*Lane{&e.UsageSchedule, &e.ResetSchedule} {
 			if !lane.PendingAt.IsZero() && now.Sub(lane.PendingAt) > MaxPendingAge {
@@ -133,8 +170,49 @@ func (c *Coordinator) reconcile(ids []Identity, p Policy, now time.Time) error {
 	return c.flush(false, now)
 }
 
-func (c *Coordinator) usageDelay(active bool, p Policy) time.Duration {
-	if active {
+// A crash can occur after the durable admission but before the actual dispatch
+// time is saved. Retain the claim and conservatively fence one maximum gap on
+// recovery, before removing replaced accounts. No extra file/schema is needed.
+func (c *Coordinator) recoverDispatchBudget(now time.Time) error {
+	if !c.recoverRead {
+		return nil
+	}
+	if floor := now.Add(time.Minute); floor.After(c.state.NextStart) {
+		c.state.NextStart = floor
+	}
+	if c.recoverReset && now.Add(2*time.Minute).After(c.state.AutomaticReset.NextStart) {
+		c.state.AutomaticReset = automaticResetControl{Schema: 1, LastStart: now, NextStart: now.Add(2 * time.Minute)}
+	}
+	if err := c.store.saveControl(c.state); err != nil {
+		c.storageError = true
+		return errors.New("monitor interrupted budget recovery unavailable; provider checks paused")
+	}
+	c.recoverRead, c.recoverReset = false, false
+	return nil
+}
+
+func usageAnchor(e *Entry) time.Time {
+	anchor := e.UsageSchedule.LastAttempt
+	if e.Usage != nil && e.Usage.ObservedAt.After(e.InvalidatedAt) && e.Usage.ObservedAt.After(anchor) {
+		anchor = e.Usage.ObservedAt
+	}
+	return anchor
+}
+
+// Stable pseudo-random jitter permits an old long deadline to be tightened
+// identically after restart, while preserving strict v1 cache compatibility.
+// Only opaque identity and the real scheduling epoch are hashed; no new random
+// seed, activity history, secret, file or per-account timer is retained.
+func activeUsageDelay(key string, anchor time.Time) time.Duration {
+	digest := sha256.Sum256([]byte(key + "|" + anchor.UTC().Format(time.RFC3339Nano)))
+	return 5*time.Minute + time.Duration(binary.BigEndian.Uint64(digest[:8])%uint64(5*time.Minute))
+}
+
+func (c *Coordinator) usageDelay(id Identity, p Policy, anchor time.Time) time.Duration {
+	if id.InUse {
+		return activeUsageDelay(id.Key, anchor)
+	}
+	if id.Active {
 		seconds := p.UsageSeconds
 		if seconds == 0 {
 			seconds = 1800
@@ -319,7 +397,7 @@ func (c *Coordinator) Step(ctx context.Context, ids []Identity, req Request, fet
 	}
 	e := c.entries[selected.id.Key]
 	lane := &e.UsageSchedule
-	delay := c.usageDelay(selected.id.Active, p)
+	delay := c.usageDelay(selected.id, p, now)
 	automaticReset := selected.lane == ResetLane && e.ResetSchedule.PendingAt.IsZero()
 	if selected.lane == ResetLane {
 		lane = &e.ResetSchedule
@@ -348,10 +426,28 @@ func (c *Coordinator) Step(ctx context.Context, ids []Identity, req Request, fet
 	}
 	c.inFlight, c.inFlightKey, c.inFlightLane = true, selected.id.Key, selected.lane
 	c.mu.Unlock()
+	// Persisted admission is not dispatch: variable fsync latency must not
+	// shorten the actual gap. One-flight ownership fences all other checks until
+	// the corrected deadline is saved, before clearing the interrupted claim.
+	dispatchedAt := c.clock()
 	result := safeFetch(ctx, fetch, selected.id, selected.lane)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.inFlight, c.inFlightKey, c.inFlightLane = false, "", ""
+	if elapsed := dispatchedAt.Sub(now); elapsed > 0 {
+		c.state.Starts[len(c.state.Starts)-1] = dispatchedAt
+		c.state.NextStart = dispatchedAt.Add(time.Duration(p.GapSeconds) * time.Second)
+		if automaticReset {
+			c.state.AutomaticReset.LastStart = dispatchedAt
+			c.state.AutomaticReset.NextStart = c.state.AutomaticReset.NextStart.Add(elapsed)
+		}
+		if err := c.store.saveControl(c.state); err != nil {
+			c.storageError = true
+			snapshot := c.snapshot(ids, c.clock())
+			snapshot.Error = "persistence_unavailable"
+			return snapshot, nil
+		}
+	}
 	now = c.clock()
 	if current := c.entries[e.Key]; current == e {
 		c.applyResult(e, lane, selected.lane, result, now)
@@ -479,7 +575,14 @@ func (c *Coordinator) ObserveRead(ids []Identity, key, kind string, result Resul
 	if e == nil {
 		return errors.New("observation identity no longer available")
 	}
-	lane, delay := &e.UsageSchedule, c.usageDelay(e.Active, p)
+	var id Identity
+	for _, candidate := range ids {
+		if candidate.Key == key {
+			id = candidate
+			break
+		}
+	}
+	lane, delay := &e.UsageSchedule, c.usageDelay(id, p, now)
 	if kind == ResetLane {
 		lane, delay = &e.ResetSchedule, c.jitter(24*time.Hour, 1, 13.0/12)
 	}
@@ -566,7 +669,7 @@ func cloneBank(b *Bank, now time.Time) *Bank {
 func (c *Coordinator) snapshot(ids []Identity, now time.Time) Snapshot {
 	s := Snapshot{Schema: 1, ObservedAt: now.UTC(), Accounts: []Account{}, InFlight: c.inFlight, NextStart: c.state.NextStart}
 	for _, id := range ids {
-		a := Account{AuthIndex: id.AuthIndex, Identity: id.Key, Blocked: id.Blocked, Active: id.Active}
+		a := Account{AuthIndex: id.AuthIndex, Identity: id.Key, Blocked: id.Blocked, Active: id.Active, Activity: id.activityClass()}
 		if e := c.entries[id.Key]; e != nil && id.Enabled {
 			a.Usage, a.Bank = cloneUsage(e.Usage, now), cloneBank(e.Bank, now)
 			a.UsageSchedule, a.ResetSchedule = e.UsageSchedule, e.ResetSchedule

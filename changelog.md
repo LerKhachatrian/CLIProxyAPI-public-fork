@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-09 08:39:00 -04:00 — activity-aware candidate staging accepted
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Clean source `fdfa6ae8b867ecd31d81a9cc877cd478ab05d687` builds with Go 1.26.2, CGO disabled, trimpath and `vcs.modified=false`. Immutable candidate SHA-256: `cb2e84421a4e26b98667beff0174be459b2c546108e3f614efe3d4b6cd2c1a91`.
+- Final full Windows tests and the five-package Linux race subset pass, including corrected actual dispatch pacing and the real Widget-client integration. A final 128-account/4096-grant/1,000-view measurement passes at 1.0071 ms p95 / 9.8715 ms maximum, 732,024 serialized bytes, 5,610,640-byte sampled peak heap and zero idle writes.
+- Synthetic binary staging passes held HTTP/stream activity, exact assistant ACKs, useful passive capture, coalesced persistence, zero-write views and abrupt restart. Active fallback is 577.788071 seconds. The five-model Fast matrix, authenticated affinity contract and external-respawner/forced-rollback scenarios pass on 48318/48319; all helpers exit. No live provider/account calls or protected-router mutation occurred.
+- The rollback artifact matches the unchanged live `56ff39cd` binary. Widget 0.38 package/native/temporary-installer proof also passes. Publication, guarded Widget installation and a fresh preflight/warning/action-time-approved protected-router activation remain pending; staging is not live acceptance.
+
 ## 2026-09-09 07:58:00 -04:00 — activity-aware usage fallback implementation
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

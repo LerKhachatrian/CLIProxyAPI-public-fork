@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-09 19:41:00 -04:00 - usage-refresh delivery isolated pending coordination
+
+- Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`
+- At the operator's request, created manual side branch `codex/usage-refresh-isolated` from already-published implementation `6575308644e004c81a7c601162d381b5d89e71af`, without changing the primary branch or checkout. The bounded credential-recovery and usage-only deferred-intent implementation is unchanged.
+- Existing full-suite, immutable candidate, passive-cache staging and cutover/rollback staging evidence remains valid for the unchanged source. Candidate SHA-256 is `20e54894747eaf9a27e69a455e06526004bc5513aa89757b8cef3e8e9896a6b5`. A separate worktree-focused check is being recorded by the task owner; do not infer its result from this entry.
+- This side change records coordination only. Production promotion and any further integration are deferred pending an operator-selected integration and cutover window. Worktrees do not isolate the shared live listener, and staging success does not prove live usage recovery or plan freshness.
+
 ## 2026-09-09 15:24:00 -04:00 — initial reset inventory accepted live
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

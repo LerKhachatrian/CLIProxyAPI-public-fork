@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-09 01:02:00 -04:00 — accepted live automatic reset spacing
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Fresh candidate/live/rollback/health preflight and output-volume disk gate passed. Following the disclosed interpretation of Ler's current-thread assent to the brief-restart question, the unchanged `dbfb45e9` candidate was activated on protected 48317 through the existing hash-locked deployer. Canonical SHA-256 is `56ff39cdf1f0508f0af56279e2c6d8084f33357b70e3da5a4705478a895f16f9`; independent PID 1400236 remains healthy with HTTP 200 after the deployment parent exits. Deployment source anchor is `ler-live-20260909-dbfb45e9`.
+- The prior `8e10e300` executable remains hash-verified in the retained rollback artifact; only its redundant displaced copy was removed. Candidate build provenance still reports exact source `dbfb45e9cc7dee38431bb2caefff436c929434ad` and `vcs.modified=false`. No configuration/auth inspection, account action, test message, explicit affinity reset, App Server or SSH change occurred.
+- Installed Widget 0.33 reconnected to ten account cards, then applied Ler's explicit request for Auto usage and Daily reset inventory through its existing preference owner. Independent cold start verifies those two settings, the unchanged common gap, all unrelated preferences, all prior 30 reset events/49,606 projection samples and zero operation intents. The automatic reset floor is now live; later active-usage classification and presentation items remain separate. Scheduled operation after enablement is authorized, not provider QA.
+- Full test/race/binary/Fast/affinity/rollback evidence remains valid; this follow-up changes documentation only. Final delivery publication/parity and the single item 1 completion notice precede the next item.
+
 ## 2026-09-09 00:42:10 -04:00 — published spacing candidate at action-time gate
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

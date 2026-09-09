@@ -150,6 +150,12 @@ Implementation `dbfb45e9` plus staging docs `5bf3f376` are pushed with exact for
 
 Telegram request 882 was delivered after the restart impact warning, but its 120-second acknowledgment wait timed out. No new approval or activation occurred. The prior release's approval is spent; do not replay its cutover or send another copy of 882 automatically. Before execution, obtain explicit approval for one brief protected 48317 restart and recheck candidate/live/rollback identity and health. Then prove independent installed health and Widget reconnection, publish the final evidence and send the single item completion notice. No later queue item starts before that boundary is completed.
 
+### Item 1 live acceptance — 2026-09-09 01:02 -04:00
+
+The pending gate above is historical. Ler requested automatic usage and reset inventory and replied "And yeah, thanks" directly to the brief-restart question. The assistant explicitly stated its interpretation of that assent and repeated the interruption warning before control. A fresh exact-volume gate and hash-locked preflight passed; the unchanged `dbfb45e9` candidate was activated by the existing deployer. Canonical SHA-256 remains `56ff39cdf1f0508f0af56279e2c6d8084f33357b70e3da5a4705478a895f16f9`, PID 1400236, HTTP 200 after deployment-parent exit. Immutable source tag: `ler-live-20260909-dbfb45e9`. The retained rollback matches `8e10e3005ec82369942711e75b663a021450fee9c262d734b79ecc8a6253de13`; only the redundant displaced executable was removed.
+
+The installed Widget 0.33 reconnected without a manual provider request. Its two explicitly requested automatic modes were then saved through the shipped preference owner and verified after independent minimized cold start: usage target 30 minutes, reset inventory Daily, common gap 10 seconds. The separate automatic-reset 60–120-second floor is now live. All ten account cards, unchanged prior history, empty action journal and unrelated preferences pass. No real provider test generation, reset redemption, OAuth, configuration, priority, explicit affinity clear, App Server or SSH mutation occurred. Subsequent scheduled monitoring is requested normal operation, not a synthetic test or proof of provider account health. The companion state must remain with the cache across future rollback/re-upgrade.
+
 ## Passive-first baseline delivery checklist
 
 - [x] Inspect existing owners; preserve scope and freeze this contract.

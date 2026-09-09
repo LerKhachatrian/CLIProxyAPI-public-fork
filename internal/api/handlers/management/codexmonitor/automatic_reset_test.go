@@ -172,6 +172,8 @@ func TestAutomaticResetFileStoreCompatibilityAndNoExtraWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	initialStore := s
+	t.Cleanup(func() { _ = initialStore.Close() })
 	now := time.Date(2026, 9, 9, 4, 0, 0, 0, time.UTC)
 	state := control{Schema: 1, NextStart: now.Add(10 * time.Second), Starts: []time.Time{now},
 		AutomaticReset: automaticResetControl{Schema: 1, LastStart: now, NextStart: now.Add(90 * time.Second)}}

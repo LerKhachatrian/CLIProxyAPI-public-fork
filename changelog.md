@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-09 15:02:00 -04:00 — paced initial reset-inventory bootstrap
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Corrected the existing monitor coordinator's first-check eligibility: new missing reset inventory is due immediately, and enabling Auto brings forward old never-attempted future bootstrap deadlines. Shared one-flight/common and 60–120-second automatic-reset pacing, exclusions, durable claims, failure/Retry-After and recurring daily/weekly cadence remain authoritative. No Widget production code, extra poller, schema migration, cache-file edit or account action is introduced.
+- The old fresh/legacy regression fails before the fix and focused/full-coordinator tests pass afterward. Added 10/128-account Daily/Weekly boundaries, manual-only/Auto transition, strict-v1 upgrade/write failure and existing-observation/exclusion coverage. The real three-client Widget fixture upgrades two legacy entries, renders synthetic partial 4 then complete 19, waits 75,361 ms between actual starts and preserves captures/attempts across restart, with zero manual or live-provider QA calls. The binary harness's opt-in initial-inventory mode tests a deliberately loopback-denied attempt and failed-restart no-replay.
+- Full suite, race, immutable build/staging, publication and independently accepted deployment remain pending at this implementation entry. The previous activity-aware release and its completion notice are not repeated. Human headed/DPI/actual Restart acceptance remains deferred in Widget's existing checklist.
+
+### Implementation verification follow-up — 15:08 EDT
+
+The full Windows suite passes with the accepted Widget 0.38 source, including both actual three-client integrations. Its first run hit one existing file-store replacement error; that failure is retained, and the test now closes its initial store even after a failed assertion. No production retry or threshold changed. Twenty consecutive focused repeats and the complete rerun pass; the transient replacement failure's OS cause is not established. At 128 accounts/4096 grants/1,000 views, p95 is 1.0009 ms, maximum 15.8432 ms, serialized state 732,024 bytes, sampled peak heap 5,104,512 bytes and idle writes zero. Race, immutable build/staging and deployment remain separate gates.
+
 ## 2026-09-09 14:37:00 -04:00 — activity-aware fallback accepted live
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

@@ -239,8 +239,8 @@ func TestFair128AccountBudgetAndNoStartupSweep(t *testing.T) {
 	if _, err := c.Step(context.Background(), ids, Request{Policy: Policy{UsageSeconds: 1800, ResetSeconds: 86400}}, fetch); err != nil {
 		t.Fatal(err)
 	}
-	if len(starts) != 0 {
-		t.Fatal("startup sweep")
+	if len(starts) != 1 {
+		t.Fatal("startup must claim one initial inventory, never sweep the pool")
 	}
 	for i := 0; i < 128; i++ {
 		req := Request{}

@@ -6,13 +6,15 @@ quota headers. Manual-only monitor calls must retain that exact observation
 after the documented coalesced flush and an abrupt candidate restart, with no
 extra upstream requests or unchanged-observation cache writes.
 CONNECT is denied and counted: even an accidental provider check cannot escape
-the synthetic loopback proxy. No installed router, auth file or live key is used.
+the synthetic loopback proxy. Optional initial-inventory proof expects one
+deliberately denied synthetic monitoring attempt, then verifies its durable
+failure/cadence across restart. No installed router, auth file or live key is used.
 """
 from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import http.client
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -85,6 +87,8 @@ class Fixture(HTTPServer):
     def __init__(self, port):
         self.generations = 0
         self.forbidden = 0
+        self.allow_initial_inventory = False
+        self.initial_inventory_attempts = 0
         self.arm()
         super().__init__(("127.0.0.1", port), FixtureHandler)
 
@@ -104,7 +108,11 @@ class FixtureHandler(BaseHTTPRequestHandler):
         pass
 
     def do_CONNECT(self):
-        self.server.forbidden += 1
+        if (self.server.allow_initial_inventory and self.path == "chatgpt.com:443"
+                and self.server.initial_inventory_attempts == 0):
+            self.server.initial_inventory_attempts += 1
+        else:
+            self.server.forbidden += 1
         self.send_error(502, "Synthetic fixture refuses external connections")
 
     def do_GET(self):
@@ -167,6 +175,8 @@ def main():
     parser.add_argument("--evidence-dir", required=True, type=Path)
     parser.add_argument("--proxy-port", type=int, default=48318)
     parser.add_argument("--capture-port", type=int, default=48319)
+    parser.add_argument("--initial-inventory", action="store_true",
+                        help="Verify paced legacy bootstrap and no failed-attempt replay through a denying proxy")
     args = parser.parse_args()
     validate(args.candidate, args.evidence_dir, args.proxy_port, args.capture_port)
     candidate, evidence = args.candidate.resolve(), args.evidence_dir.resolve()
@@ -332,11 +342,58 @@ codex-api-key:
         assert fixture.generations == 2 and fixture.forbidden == 0
         receipt.update(status="passed", assistant_ack=ACK, synthetic_generations=fixture.generations,
                        forbidden_external_attempts=fixture.forbidden, monitor_provider_reads=0,
+                       monitor_provider_reads_scope="manual-only-phase",
                        cache_files=len(baseline), repeated_views=30, unchanged_cache_writes=0,
                        passive_capture_preserved=True, protected_port_untouched=True,
                        active_fallback_seconds=(due - captured).total_seconds(),
                        activity_runtime_only=True, held_http_and_stream_passed=True)
         receipt["phases"].append("abrupt-restart-keeps-original-capture-and-manual-only")
+        if args.initial_inventory:
+            # Seed only this stopped, generated fixture. Never edit live or
+            # writer-owned cache state to perform an upgrade.
+            stop()
+            entry_path = cache / (restarted["identity"] + ".json")
+            before = cache_fingerprint(cache)
+            legacy = json.loads(entry_path.read_bytes())
+            assert legacy["schema"] == 1 and not legacy.get("resets")
+            lane = legacy["reset_schedule"]
+            assert lane["last_attempt"].startswith("0001-") and not lane.get("error")
+            legacy_due = (datetime.now(timezone.utc) + timedelta(hours=23)).isoformat()
+            lane["due_at"] = legacy_due
+            entry_path.write_text(json.dumps(legacy), encoding="utf-8")
+            assert process is None and cache_fingerprint(cache) != before
+            start()
+            manual = view("POST", MANUAL)
+            assert datetime.fromisoformat(manual["reset_schedule"]["due_at"]) == datetime.fromisoformat(legacy_due)
+            assert fixture.initial_inventory_attempts == fixture.forbidden == 0
+            fixture.allow_initial_inventory = True
+            auto = {"policy": {"usage_seconds": 0, "reset_seconds": 86400, "gap_seconds": 10}}
+            status, checked = request(args.proxy_port, "POST", MONITOR, auto)
+            assert status == 200 and checked["attempted"] == "resets" and checked["pending"] == 0
+            assert fixture.initial_inventory_attempts == 1 and fixture.forbidden == 0
+            checked_row = checked["accounts"][0]
+            checked_lane = checked_row["reset_schedule"]
+            attempt = datetime.fromisoformat(checked_lane["last_attempt"])
+            next_due = datetime.fromisoformat(checked_lane["due_at"])
+            assert 0 <= (datetime.now(timezone.utc) - attempt).total_seconds() < 15
+            assert 24*3600 <= (next_due - attempt).total_seconds() < 26*3600
+            assert checked_lane["error"] == "provider_unavailable" and not checked_row.get("resets")
+            assert checked_row["usage"] == usage
+            fixed = cache_fingerprint(cache)
+            for _ in range(30):
+                assert view("POST", auto)["reset_schedule"] == checked_lane
+            assert cache_fingerprint(cache) == fixed
+            stop()
+            start()
+            assert view("POST", auto)["reset_schedule"] == checked_lane
+            assert fixture.initial_inventory_attempts == 1 and fixture.forbidden == 0
+            assert cache_fingerprint(cache) == fixed
+            receipt.update(initial_inventory_legacy_upgrade=True, initial_inventory_attempts=1,
+                           initial_inventory_successful_provider_reads=0,
+                           initial_inventory_denied_at_loopback=True,
+                           initial_inventory_failure_restart_preserved=True,
+                           initial_inventory_daily_delay_seconds=(next_due-attempt).total_seconds())
+            receipt["phases"].append("legacy-initial-inventory-immediate-paced-claim-and-failed-restart-no-replay")
     except BaseException as error:
         receipt.update(status="failed", error_type=type(error).__name__)
         raise

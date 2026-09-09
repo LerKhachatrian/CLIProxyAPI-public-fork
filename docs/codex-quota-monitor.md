@@ -1,5 +1,13 @@
 # Passive-first Codex quota monitoring
 
+## Initial reset inventory — implementation pending deployment
+
+Session `01a077c3-26f5-7242-9d03-424a32cafc47`, 2026-09-09. A never-checked reset bank previously received a random first deadline up to 24 hours away, so a correct partial total could stay incomplete until the next day. This is a scheduling problem, not lost credits or incorrect summation. With reset Auto enabled, new missing inventory is immediately eligible, and existing strict-v1 entries with no bank and no prior attempt have their future bootstrap deadlines brought forward once. Snapshot GETs remain local-only; the next ordinary scheduling step may claim one read.
+
+The existing coordinator owns this small subfeature. A manual catch-up would not repair future new/upgraded accounts; another worker or client-side sweep would duplicate shared pacing and persistence. First checks use the same one-flight, common 10–60-second/six-per-minute budget and independent randomized 60–120-second automatic-reset floor. A ten-account pool therefore needs a paced sequence, not one burst; client cadence, other work and cooldowns can extend completion. Manual-only still makes zero automatic reads. Existing observed banks, failed or interrupted attempts, disabled/blocked identities, Retry-After, action authority and daily/weekly recurring cadence are unchanged. No schema, timer, new process or cache-file migration is added.
+
+Regression coverage includes fresh and legacy pools of 10 and 128 accounts under Daily/Weekly, durable pre-dispatch claims, manual-to-Auto transition, zero-write local views, valid zero, exclusions, failure/restart and strict-cache write failure. The real three-Widget-client fixture upgrades two legacy entries, displays a synthetic partial 4 then complete 19, preserves actual capture times across two restarts, and records a 75,361-ms actual gap without manual intents. That synthetic total is not a live-provider balance claim. The existing binary harness also offers `--initial-inventory`: its loopback proxy deliberately denies one initial attempt, then checks daily failure cadence and no replay after restart. Full/race/build, exact-candidate staging and independent live acceptance remain explicit gates until recorded below. Existing 128-account/4096-grant p95 <250 ms, 16 MiB cache, <100-ms UI and <11-second close budgets remain unchanged; Widget application/package inputs are unchanged.
+
 ## Current live acceptance — 2026-09-09 14:37 -04:00
 
 Session `01a077c3-26f5-7242-9d03-424a32cafc47`. The activity-aware release is now live, superseding its historical pending gates below. Ler's explicit greenlight covered the disclosed brief router interruption and Widget installation. Fresh preflight verified the immutable staged candidate, canonical listener, health and rollback, and the impact warning was repeated before execution. Clean source `fdfa6ae8b867ecd31d81a9cc877cd478ab05d687`, source tag `ler-live-20260909-fdfa6ae8`, maps to canonical SHA-256 `cb2e84421a4e26b98667beff0174be459b2c546108e3f614efe3d4b6cd2c1a91`. PID 1946164 independently serves HTTP 200 after the deployment owner exits. The hash-matched `56ff39cd` rollback remains retained; only the redundant displaced copy was removed.
@@ -56,6 +64,10 @@ that these intervals prevent one.
   requested longer interval). An explicit manual request may bypass that cadence,
   but never cooldowns or the one-minute duplicate-attempt floor. Redemption's
   separate fresh preflight is unchanged.
+- With reset Auto enabled, never-attempted missing inventory is eligible on the
+  next scheduling step, including legacy future bootstrap deadlines. It still
+  passes every shared budget and exclusion; this is not a whole-pool sweep.
+  Existing banks and any prior attempt retain their durable recurring cadence.
 - Automatic reset-inventory starts additionally have a 60–120-second randomized
   inter-start floor. The interval is drawn once per automatic attempt (including
   failure) and saved before dispatch. A waiting automatic reset is excluded from

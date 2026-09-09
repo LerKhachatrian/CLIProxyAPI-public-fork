@@ -110,8 +110,17 @@ func (c *Coordinator) reconcile(ids []Identity, p Policy, now time.Time) error {
 				delay = c.jitter(5*time.Minute, .2, 1)
 			}
 			e.UsageSchedule.DueAt = now.Add(delay)
-			e.ResetSchedule.DueAt = now.Add(c.jitter(24*time.Hour, 0, 1))
+			// Unknown inventory is due immediately, but only an enabled Auto lane
+			// can dispatch it through the existing one-flight and 60–120s budgets.
+			e.ResetSchedule.DueAt = now
 			c.entries[id.Key], c.dirty[id.Key] = e, true
+		}
+		if p.ResetSeconds != 0 && e.Bank == nil && e.ResetSchedule.LastAttempt.IsZero() && e.ResetSchedule.DueAt.After(now) {
+			// Upgrade old, never-attempted entries out of their 0–24h bootstrap
+			// delay once Auto is enabled. Keep observed/failed/interrupted checks
+			// on their durable cadence; cooldowns and manual intents stay intact.
+			e.ResetSchedule.DueAt = now
+			c.dirty[id.Key] = true
 		}
 		if id.Active && !id.InUse && !e.Active {
 			soon := now.Add(c.jitter(5*time.Minute, .2, 1))

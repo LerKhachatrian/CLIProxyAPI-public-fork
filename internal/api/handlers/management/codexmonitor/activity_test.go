@@ -205,6 +205,9 @@ func TestActivityCannotBypassManualOnlyCooldownsOrResetCadence(t *testing.T) {
 	_, _ = c.Snapshot(ids, Policy{})
 	for _, e := range c.entries {
 		e.UsageSchedule.DueAt = now.Add(-time.Hour)
+		// This checks recurring cadence after an attempt, not the separately
+		// eligible bootstrap of a never-checked reset inventory.
+		e.ResetSchedule.LastAttempt = now.Add(-time.Hour)
 		e.ResetSchedule.DueAt = now.Add(24 * time.Hour)
 	}
 	denied := func(context.Context, Identity, string) Result { t.Fatal("prohibited provider read"); return Result{} }

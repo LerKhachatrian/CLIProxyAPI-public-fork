@@ -48,6 +48,13 @@ that these intervals prevent one.
   requested longer interval). An explicit manual request may bypass that cadence,
   but never cooldowns or the one-minute duplicate-attempt floor. Redemption's
   separate fresh preflight is unchanged.
+- Automatic reset-inventory starts additionally have a 60–120-second randomized
+  inter-start floor. The interval is drawn once per automatic attempt (including
+  failure) and saved before dispatch. A waiting automatic reset is excluded from
+  selection, so due usage and explicit manual checks retain the configured
+  global 10–60-second gap. Manual reset checks do not redraw this independent
+  floor. Actual automatic starts may be later because of local client cadence,
+  other eligible work or cooldowns; 120 seconds is not a maximum queue latency.
 - One monitoring provider read in flight, at least ten seconds between starts
   (clients may request a larger gap), and six starts per rolling minute. Oldest
   due work wins; jitter, persisted deadlines and a global budget prevent restart,
@@ -69,6 +76,18 @@ that these intervals prevent one.
   display observation; it must never rejuvenate the older retained capture.
   Provider attempts, action barriers and their safety deadlines are persisted
   synchronously before dispatch and do not share this display-only loss window.
+- The automatic-reset floor uses one <=4 KiB companion named
+  `<cache-directory>.automatic-resets.v1.json`, beside the existing cache. The
+  same lifetime OS lock owns it. Keeping it outside the strict legacy directory
+  preserves v1 control/account JSON and older-binary rollback; older binaries
+  ignore, never delete, this file. Include it with the cache in backups and retain
+  it across rollback/re-upgrade. Schema, duplicate/unknown fields, regular-file
+  size and the recorded 60–120-second interval are validated. Invalid state
+  fails closed and is preserved. It is written only when an automatic deadline
+  advances, before the common budget write and provider dispatch. Failure of
+  either write prevents the request; partial success conservatively retains a
+  future floor. No tick, idle view, manual request or usage request rewrites an
+  unchanged companion. Account removal cannot remove the shared floor.
 - Removed/replaced/disabled identities lose display authority. A reported reset
   or grant expiry expires the corresponding balance without a new provider call.
   Usage and reset ages remain independent; cached samples never become fresh
@@ -103,6 +122,25 @@ one small control file and one OS-lock file, with a 16 MiB aggregate cap. Measur
 peak/retained memory and writes during a bounded 128-account workload. The UI's
 existing heartbeat <100 ms and asynchronous close <11 seconds remain required.
 These are bounded-workload claims, not universal no-leak/no-freeze promises.
+
+## Follow-up item 1: automatic reset spacing — 2026-09-09
+
+Session `01a077c3-26f5-7242-9d03-424a32cafc47`. This is the first separately
+delivered item in the approved Widget cadence/quiet-presentation follow-up.
+The existing coordinator/store owns the change. Extending the common request
+gap would delay manual and usage work; changing strict cache fields would break
+binary rollback. The independent, same-owner companion avoids both problems.
+Daily/weekly/reset-action rules, usage classification and routing are unchanged.
+
+Focused tests cover exact minimum/midpoint/maximum chosen intervals, repeated
+clients without redraw, manual usage and reset service inside the automatic
+floor, failed-attempt restart, account removal, 128-account catch-up and mixed
+manual queues inside the unchanged eight-hour bound, legacy JSON/directory
+compatibility, no unchanged companion writes, malformed/future/oversized state,
+and failure of either pre-dispatch file write. Full Windows Go tests pass with
+the three-real-Widget-client integration enabled. Immutable binary staging,
+installed delivery and action-time-approved activation are still pending; tests
+do not claim deployment. Both live automatic lanes remain off during this item.
 
 ## Delivery checklist
 

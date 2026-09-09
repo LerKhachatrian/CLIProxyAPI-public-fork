@@ -18,9 +18,23 @@ var cacheKey = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var orphanWrite = regexp.MustCompile(`^\.write-[0-9]+\.tmp$`)
 
 type control struct {
-	Schema    int         `json:"schema"`
-	NextStart time.Time   `json:"next_start"`
-	Starts    []time.Time `json:"starts"`
+	Schema         int                   `json:"schema"`
+	NextStart      time.Time             `json:"next_start"`
+	Starts         []time.Time           `json:"starts"`
+	AutomaticReset automaticResetControl `json:"-"` // separate file preserves strict v1-reader rollback
+}
+
+// The existing store lock also owns this small companion. Keeping it beside the
+// legacy cache lets an older binary ignore it without deleting new safety state.
+type automaticResetControl struct {
+	Schema    int       `json:"schema"`
+	LastStart time.Time `json:"last_start"`
+	NextStart time.Time `json:"next_start"`
+}
+
+func (c automaticResetControl) valid() bool {
+	delay := c.NextStart.Sub(c.LastStart)
+	return c.Schema == 1 && !c.LastStart.IsZero() && delay >= time.Minute && delay <= 2*time.Minute
 }
 
 type Store interface {
@@ -34,14 +48,16 @@ type Store interface {
 // FileStore holds one OS lock for the coordinator lifetime. Process death
 // releases it; the mere existence of the lock file is never stale ownership.
 type FileStore struct {
-	dir  string
-	lock *os.File
+	dir                 string
+	lock                *os.File
+	savedAutomaticReset automaticResetControl
 }
 
 func OpenStore(dir string) (*FileStore, error) {
 	if !filepath.IsAbs(dir) {
 		return nil, errors.New("monitor cache requires an absolute directory")
 	}
+	dir = filepath.Clean(dir)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, errors.New("monitor cache directory unavailable")
 	}
@@ -97,6 +113,11 @@ func (s *FileStore) load() (control, map[string]*Entry, error) {
 	if c.Schema != 1 || len(c.Starts) > 6 {
 		return c, nil, errors.New("unsupported monitor control cache; preserved")
 	}
+	err = readJSON(s.automaticResetPath(), 4096, &c.AutomaticReset)
+	if err != nil && !errors.Is(err, os.ErrNotExist) || err == nil && !c.AutomaticReset.valid() {
+		return c, nil, errors.New("automatic reset pacing cache invalid; preserved")
+	}
+	s.savedAutomaticReset = c.AutomaticReset
 	directory, err := os.Open(s.dir)
 	if err != nil {
 		return c, nil, errors.New("monitor cache unavailable")
@@ -198,7 +219,23 @@ func validLaneError(s string) bool {
 }
 
 func (s *FileStore) saveControl(c control) error {
+	if c.AutomaticReset != s.savedAutomaticReset {
+		if !c.AutomaticReset.valid() || c.AutomaticReset.LastStart.Before(s.savedAutomaticReset.LastStart) {
+			return errors.New("invalid automatic reset pacing deadline")
+		}
+		// Advance the independent floor before recording the common budget. A
+		// failure of either write prevents dispatch; it can lose an opportunity
+		// to check, never permit an unrecorded provider attempt after a crash.
+		if err := s.writeFile(s.automaticResetPath(), c.AutomaticReset, 4096); err != nil {
+			return err
+		}
+		s.savedAutomaticReset = c.AutomaticReset
+	}
 	return s.write("control.json", c, 4096)
+}
+
+func (s *FileStore) automaticResetPath() string {
+	return s.dir + ".automatic-resets.v1.json"
 }
 
 func (s *FileStore) saveEntry(e *Entry) error {
@@ -220,6 +257,10 @@ func (s *FileStore) removeEntry(key string) error {
 }
 
 func (s *FileStore) write(name string, value any, capBytes int) error {
+	return s.writeFile(filepath.Join(s.dir, name), value, capBytes)
+}
+
+func (s *FileStore) writeFile(path string, value any, capBytes int) error {
 	data, err := json.Marshal(value)
 	if err != nil || len(data) > capBytes {
 		return errors.New("monitor cache serialization failed")
@@ -239,7 +280,7 @@ func (s *FileStore) write(name string, value any, capBytes int) error {
 	if errClose := tmp.Close(); errClose != nil {
 		return errors.New("monitor cache close failed")
 	}
-	if errRename := os.Rename(tmpName, filepath.Join(s.dir, name)); errRename != nil {
+	if errRename := os.Rename(tmpName, path); errRename != nil {
 		return errors.New("monitor cache replacement failed")
 	}
 	return nil

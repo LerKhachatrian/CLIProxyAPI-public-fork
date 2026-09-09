@@ -255,6 +255,12 @@ func (c *Coordinator) selectDue(ids []Identity, p Policy, now time.Time) *candid
 			} else if seconds == 0 {
 				continue
 			} else if kind == ResetLane {
+				// Only automatic reset inventory waits for this floor. Skip it
+				// during selection so due usage and manual work are never blocked
+				// behind an older automatic candidate that cannot start yet.
+				if c.state.AutomaticReset.NextStart.After(now) {
+					continue
+				}
 				// A manual attempt also resets automatic eligibility. The daily
 				// floor is not shortened by failure, restart or another client.
 				floor := lane.LastAttempt.Add(time.Duration(max(86400, seconds)) * time.Second)
@@ -314,6 +320,7 @@ func (c *Coordinator) Step(ctx context.Context, ids []Identity, req Request, fet
 	e := c.entries[selected.id.Key]
 	lane := &e.UsageSchedule
 	delay := c.usageDelay(selected.id.Active, p)
+	automaticReset := selected.lane == ResetLane && e.ResetSchedule.PendingAt.IsZero()
 	if selected.lane == ResetLane {
 		lane = &e.ResetSchedule
 		delay = c.jitter(time.Duration(max(86400, p.ResetSeconds))*time.Second, 1, 13.0/12)
@@ -328,6 +335,12 @@ func (c *Coordinator) Step(ctx context.Context, ids []Identity, req Request, fet
 		return Snapshot{}, err
 	}
 	c.state.Starts, c.state.NextStart = append(starts, now), now.Add(time.Duration(p.GapSeconds)*time.Second)
+	if automaticReset {
+		// Sample once per automatic attempt, including a failed attempt. This
+		// account-independent floor survives removal and shared-router restart.
+		c.state.AutomaticReset = automaticResetControl{Schema: 1, LastStart: now,
+			NextStart: now.Add(c.jitter(time.Minute, 1, 2))}
+	}
 	if err := c.store.saveControl(c.state); err != nil {
 		c.storageError = true
 		c.mu.Unlock()

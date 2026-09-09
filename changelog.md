@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-08 23:57:08 -04:00 — independent automatic reset-inventory spacing
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Implemented the approved 60–120-second randomized floor for automatic reset-inventory attempts only. Ineligible automatic candidates are skipped during selection; usage and explicit manual queues retain the configured shared 10–60-second gap, existing one-flight/rolling budget and cooldowns. Daily/weekly per-account attempt rules are unchanged.
+- Persist the once-chosen deadline before dispatch in a <=4 KiB companion beside the legacy cache, under the same existing OS lock. Old strict v1 readers can roll back without a cache downgrade. Failure, restart and account removal preserve the floor; invalid state is retained and fails closed. Unchanged floors add no idle, manual or usage writes.
+- Focused minimum/midpoint/maximum, independent-lane, failure/restart/removal, 128-account mixed-queue, compatibility, malformed-state and write-failure tests pass. Full Windows Go tests pass with the actual three-client Widget integration against the accepted 0.33 source projection. Based on `b760f655` / upstream v7.2.151; immutable build/staging, publication and protected 48317 activation remain pending. No live account, configuration or process was changed for tests.
+
 ## 2026-09-08 21:04:14 -04:00 — approved passive-first live activation
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

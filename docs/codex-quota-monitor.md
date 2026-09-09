@@ -144,6 +144,12 @@ Linux monitor race passes in 4.788 seconds. For 128 accounts/4096 grants/1000 sn
 
 Widget 0.33 is independently installed with both automatic lanes still off and prior settings/history preserved. Publication and a new action-time-approved protected-router activation remain required; staging is not live deployment. Preserve current `8e10e300` as the hash-locked rollback baseline, not its older predecessor. This item does not change usage classification or any later queued presentation feature.
 
+### Item 1 publication and activation boundary
+
+Implementation `dbfb45e9` plus staging docs `5bf3f376` are pushed with exact fork parity and clean source. Widget `e97e567` is pushed and 0.33 independently installed. The fixed candidate `56ff39cd` has a new hash-matching current `8e10e300` rollback; immediate read-only preflight reports ready with exact live owner/health. These checks do not replace action-time approval.
+
+Telegram request 882 was delivered after the restart impact warning, but its 120-second acknowledgment wait timed out. No new approval or activation occurred. The prior release's approval is spent; do not replay its cutover or send another copy of 882 automatically. Before execution, obtain explicit approval for one brief protected 48317 restart and recheck candidate/live/rollback identity and health. Then prove independent installed health and Widget reconnection, publish the final evidence and send the single item completion notice. No later queue item starts before that boundary is completed.
+
 ## Passive-first baseline delivery checklist
 
 - [x] Inspect existing owners; preserve scope and freeze this contract.

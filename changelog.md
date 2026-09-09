@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-09 00:42:10 -04:00 — published spacing candidate at action-time gate
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Implementation `dbfb45e9` and staging evidence `5bf3f376` are pushed to `ler-public-fork/codex/gpt6-astra-v7.2.151` with exact remote parity and clean source. Matching Widget source `e97e567` is pushed, and canonical 0.33 independently runs with prior settings/history preserved.
+- Retained a new rollback executable matching current live SHA-256 `8e10e3005ec82369942711e75b663a021450fee9c262d734b79ecc8a6253de13`. Fresh `PreflightOnly` reports ready for immutable candidate `56ff39cdf1f0508f0af56279e2c6d8084f33357b70e3da5a4705478a895f16f9`, exact canonical owner PID 1271864, rollback and HTTP health. Neither candidate nor live configuration was changed by preflight.
+- Structured dev Telegram request 882 was delivered once after the interruption warning; its 120-second acknowledgment wait timed out. No new action-time approval exists, so protected 48317 remains untouched. Prior release approval is spent. No new completion notice or later queue item has started; resume from the retained candidate after fresh approval and identity checks.
+- Whole-item Git-object counting passes nine cases: combined Widget/router production LOC 215,789, +51/-10/net +41. Tests/docs/generated/foreign work are excluded; the separately measured 13-file +587/-26 full diff is at the two published endpoints before this delivery-only note. Final activation/readback, final publication parity and item completion notice remain pending.
+
 ## 2026-09-09 00:32:20 -04:00 — automatic-reset-spacing immutable staging accepted
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

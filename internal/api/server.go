@@ -393,6 +393,9 @@ func (s *Server) Stop(ctx context.Context) error {
 	if errShutdown != nil {
 		return fmt.Errorf("failed to shutdown HTTP server: %v", errShutdown)
 	}
+	if errMonitor := s.mgmt.CloseCodexMonitor(); errMonitor != nil {
+		return fmt.Errorf("failed to close quota monitor: %w", errMonitor)
+	}
 
 	log.Debug("API server stopped")
 	return nil

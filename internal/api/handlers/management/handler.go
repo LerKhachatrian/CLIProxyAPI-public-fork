@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/api/handlers/management/codexmonitor"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/buildinfo"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
@@ -60,6 +61,10 @@ type Handler struct {
 	pluginStoreHTTPClient   pluginstore.HTTPDoer
 	pluginReleaseCacheMu    sync.Mutex
 	pluginReleaseCache      map[string]pluginReleaseCacheEntry
+	codexMonitorMu          sync.Mutex
+	codexMonitor            *codexmonitor.Coordinator
+	codexMonitorInitError   error
+	codexMonitorTransport   func(*coreauth.Auth) http.RoundTripper // package-private synthetic transport for contract tests
 }
 
 type configReloadSnapshot struct {

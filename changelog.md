@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-08 20:19:28 -04:00 — monitor regression and binary staging acceptance
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Final full Windows Go suite passes, including the actual three-client Widget transport against accepted source04; final Linux Go 1.26.2 scheduler race proof passes in 3.467 seconds. Windows race and physical-disk soak remain unclaimed. Widget's independent accepted-source suite passes all 513 tests, and its new 0.32 executable passes isolated native lifecycle/cache/failure checks.
+- Added the bounded feature-owned `test/codex_monitor_staging.py` entry beside the existing binary test owners. It restricts ports to 48318/48319, rejects the installed image, excludes ambient credential/storage settings, owns one hidden candidate and one synthetic capture server, and denies/counts external CONNECT attempts. A real synthetic assistant ACK and quota headers prove ordinary-response capture through the built server; management authentication and duplicate-key rejection, 30 unchanged views with zero writes, and abrupt-restart capture recovery pass with zero monitor provider reads or external attempts. No new production process or test hook was added.
+- The first abrupt-stop probe correctly exposed the documented display-write coalescing boundary: an observation not yet flushed can be lost on abrupt shutdown. The final verifier waits for the real one-minute local-view flush before testing persistence. Safety deadlines/action barriers remain synchronously durable before dispatch; no production freshness or persistence threshold was weakened.
+- Evidence: `passive-first/router-stage-draft03/receipt.json`, draft server SHA-256 `e45baa47cd7169ea0fb22d4b2b00a872e4c4009607344477d88c9ee1074210f7`. This proves current behavior but is not immutable clean-commit deployment provenance. Focused fork publication, a clean committed build, final staging/Fast/rollback/preflight and action-time-approved 48317 activation remain pending. All synthetic candidate owners exited.
+
+## 2026-09-08 19:50:00 -04:00 — shared passive-first Codex monitor candidate
+
+- Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`
+- Added the authenticated management quota-monitor GET/POST contract and a single bounded, persistent, request-driven scheduler inside the existing router. Reuses normal HTTP/WS capture times; independently schedules active/likely-next versus reserve usage and daily/weekly reset inventory. One provider read in flight, >=10-second starts, six starts/minute, per-account/global Retry-After floors, whole-batch coalescing and durable pre-dispatch attempts survive restarts. No new service, ticker, account/routing mutation, token ledger or raw response storage.
+- The 128-account/4096-grant allowlisted cache has exclusive OS ownership, bounded per-entry atomic writes and fail-closed malformed/newer-state handling. Fixed provider reads re-resolve identity, use existing token/proxy ownership, reject redirects and cap bodies/deadlines. Explicit exact-account usage/inventory reads update the cache; consume transport only invalidates display authority before/after dispatch, including uncertainty, and never replays an action. A newer successful capture supersedes old OAuth-demand state without clearing other-lane freshness or cooldowns; delayed successes cannot erase newer failures.
+- Verification: full Windows Go tests pass, including the opt-in three-real-Widget-client cross-language test against isolated source04; focused transport, concurrency, persistence, failure/identity/action barriers and recovery tests pass. Earlier Linux scheduler race run passed; a final post-recovery race/build pass remains pending. Windows 128-account/4096-grant/1000-view benchmark p95 1.074 ms, 722174 serialized bytes and zero idle writes; no universal leak or physical-disk-soak claim.
+- Based on integration HEAD `4c26a4d49ee5ad3d0bfc3a640c98fa7e2bbfb5fd` / upstream v7.2.151. Evidence: `%TEMP%/codex-widget-polling-20260908-01/passive-first`. Publication to `ler-public-fork`, clean source/binary provenance, immutable staging, rollback/preflight and action-time-approved live cutover remain pending. Protected port 48317 has not been restarted or replaced for this change.
+
 ## 2026-09-07 06:06:00 -04:00
 
 - Session ID: `01a077c3-26f5-7242-9d03-424a32cafc47`

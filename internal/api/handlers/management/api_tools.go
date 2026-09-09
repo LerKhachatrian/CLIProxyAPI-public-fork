@@ -183,6 +183,17 @@ func (h *Handler) APICall(c *gin.Context) {
 	if hostOverride != "" {
 		req.Host = hostOverride
 	}
+	observeMonitor, errMonitor := h.prepareMonitorAPICall(auth, req, tokenResolved)
+	if errMonitor != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "quota cache could not be invalidated; no provider request sent"})
+		return
+	}
+	var monitorResponse *http.Response
+	var monitorBody []byte
+	var monitorObservedAt time.Time
+	if observeMonitor != nil {
+		defer func() { observeMonitor(monitorResponse, monitorBody, monitorObservedAt) }()
+	}
 
 	httpClient := &http.Client{
 		Timeout: defaultAPICallTimeout,
@@ -190,6 +201,8 @@ func (h *Handler) APICall(c *gin.Context) {
 	httpClient.Transport = h.apiCallTransport(auth, requestProxyURL)
 
 	resp, errDo := httpClient.Do(req)
+	monitorResponse = resp
+	monitorObservedAt = time.Now().UTC()
 	if errDo != nil {
 		log.WithError(errDo).Debug("management APICall request failed")
 		c.JSON(http.StatusBadGateway, gin.H{"error": "request failed"})
@@ -206,6 +219,7 @@ func (h *Handler) APICall(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to read response"})
 		return
 	}
+	monitorBody = respBody
 
 	c.JSON(http.StatusOK, apiCallResponse{
 		StatusCode: resp.StatusCode,

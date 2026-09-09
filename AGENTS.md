@@ -55,10 +55,12 @@ go build -o test-output ./cmd/server && rm test-output # Verify compile (REQUIRE
 - Wrap defer errors: `defer func() { if err := f.Close(); err != nil { log.Errorf(...) } }()`
 - Use logrus structured logging; avoid leaking secrets/tokens in logs
 - Avoid panics in HTTP handlers; prefer logged errors and meaningful HTTP status codes
-- Timeouts are allowed only during credential acquisition; after an upstream connection is established, do not set timeouts for any subsequent network behavior. Intentional exceptions that must remain allowed are the Codex websocket liveness deadlines in `internal/runtime/executor/codex_websockets_executor.go`, the wsrelay session deadlines in `internal/wsrelay/session.go`, the management APICall timeout in `internal/api/handlers/management/api_tools.go`, and the `cmd/fetch_antigravity_models` utility timeouts
+- Timeouts are allowed only during credential acquisition; after an upstream connection is established, do not set timeouts for any subsequent network behavior. Intentional exceptions that must remain allowed are the Codex websocket liveness deadlines in `internal/runtime/executor/codex_websockets_executor.go`, the wsrelay session deadlines in `internal/wsrelay/session.go`, the management APICall timeout in `internal/api/handlers/management/api_tools.go`, the fixed read-only quota monitor's eight-second deadline in `internal/api/handlers/management/codex_monitor.go`, and the `cmd/fetch_antigravity_models` utility timeouts
 - Avoid wall-clock `time.Sleep` in TTL, expiration, ordering, or cache-eviction unit tests due to platform timer granularity (e.g. Windows default timer resolution of ~15.6ms) and CI jitter under load; prefer controllable clocks (`nowFunc` / mock clock), explicit timestamp manipulation, or deterministic synchronization primitives.
 
 ## Ler fork maintenance
+
+- `internal/api/handlers/management/codexmonitor` owns the shared passive display cache and request-driven usage/reset read scheduler. Existing auth/logging owners retain normal-response observations and routing. Follow `docs/codex-quota-monitor.md`: no new ticker, generation-time disk/provider I/O, raw response persistence, credential writes, automatic actions or cooldown/affinity changes. Explicit identity-verified action transport invalidates stale display authority before/after dispatch; it never delegates action authorization to the cache.
 
 - Read `docs/ler-fork-maintenance.md` before upstream synchronization, custom feature work, staging, deployment, or rollback.
 - Treat `origin` as the official upstream source and `ler-public-fork` as the writable fork. Never push custom commits to `origin`.

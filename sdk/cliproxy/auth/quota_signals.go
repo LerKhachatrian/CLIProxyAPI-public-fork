@@ -48,6 +48,9 @@ func (q *QuotaState) ObserveResponseHeadersForProvider(provider string, headers 
 	if observedAt.IsZero() {
 		observedAt = time.Now()
 	}
+	if observedAt.Before(q.ObservedAt) {
+		return false
+	}
 	q.Signals = next
 	q.ObservedAt = observedAt
 	return true

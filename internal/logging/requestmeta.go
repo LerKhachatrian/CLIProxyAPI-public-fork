@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type endpointKey struct{}
@@ -24,8 +25,10 @@ type responseStatusHolder struct {
 }
 
 type responseHeadersHolder struct {
-	mu      sync.RWMutex
-	headers http.Header
+	mu          sync.RWMutex
+	headers     http.Header
+	observation http.Header
+	observedAt  time.Time
 }
 
 func WithEndpoint(ctx context.Context, endpoint string) context.Context {
@@ -117,6 +120,8 @@ func SetResponseHeaders(ctx context.Context, headers http.Header) {
 	holder.mu.Lock()
 	defer holder.mu.Unlock()
 	holder.headers = cloneHTTPHeader(headers)
+	holder.observation = cloneHTTPHeader(headers)
+	holder.observedAt = time.Now()
 }
 
 // MergeResponseHeaders adds headers observed after the initial HTTP response,
@@ -131,6 +136,10 @@ func MergeResponseHeaders(ctx context.Context, headers http.Header) {
 	}
 	holder.mu.Lock()
 	defer holder.mu.Unlock()
+	// Keep the latest quota frame separate from the merged diagnostic headers.
+	// A later partial frame must not make older window fields look newly observed.
+	holder.observation = cloneHTTPHeader(headers)
+	holder.observedAt = time.Now()
 	if holder.headers == nil {
 		holder.headers = make(http.Header, len(headers))
 	}
@@ -165,6 +174,21 @@ func GetResponseHeaders(ctx context.Context) http.Header {
 	holder.mu.RLock()
 	defer holder.mu.RUnlock()
 	return cloneHTTPHeader(holder.headers)
+}
+
+// GetResponseObservation returns one response/frame and its actual capture time.
+// Delayed completion of a long stream does not advance this freshness watermark.
+func GetResponseObservation(ctx context.Context) (http.Header, time.Time) {
+	if ctx == nil {
+		return nil, time.Time{}
+	}
+	holder, ok := ctx.Value(responseHeadersKey{}).(*responseHeadersHolder)
+	if !ok || holder == nil {
+		return nil, time.Time{}
+	}
+	holder.mu.RLock()
+	defer holder.mu.RUnlock()
+	return cloneHTTPHeader(holder.observation), holder.observedAt
 }
 
 func cloneHTTPHeader(src http.Header) http.Header {

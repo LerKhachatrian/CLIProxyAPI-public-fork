@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-11 09:11:00 -04:00 - usage recovery deployed with explicit account acceptance limit
+
+- Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`
+- Activated exact source `231c9260f5638b73bd726c17d52a06fe54d61c9c`, published source tag `ler-live-20260911-231c9260`, and canonical binary SHA-256 `4a1f4e3fc2832426c5a3734f82a07bdf4bf6f01640f9d07907f92c6948210d4d`. Fresh disk/hash/owner/health preflight and the announced task-authorized interruption preceded the existing guarded deployer. The `8b4569ce` rollback is retained; exact-artifact monitor/restart and respawner/rollback staging passed. Independent canonical hash and HTTP 200 were verified after the temporary deployment owner exited.
+- Requested one paced shared usage batch immediately after activation. Nine accounts now have actual post-request Pro usage observations: six explicit checks and three passive captures. Existing provider exhaustion, retry floors and pending-intent lifetime remain intact. Installed Widget 0.43 independently exposes matching native account values and the partial known-balance aggregate; its already-verified individual and bulk actions were not confused with the read-only inspection.
+- One file-backed account remains without a usable observation after a fresh `oauth_rejected` result. That generic result is not proof of invalid refresh credentials. The existing monitor documentation records exact account-recovery acceptance requirements and the operator-selected live reconnect boundary; this is not all-account completion. No credentials were inspected, cooldowns cleared, reset credits consumed, or unrelated Widget changes absorbed.
+- Preserved the test distinction: all applicable Go cases pass across the complete batch excluding one unchanged xAI timing assertion plus three isolated passes of that test. An ordinary combined invocation is not green. Native accessibility supplies final installed-text evidence; the unusable screenshot supplies no visual proof. This entry updates delivery documentation only and does not change the tested binary.
+
 ## 2026-09-11 08:36:00 -04:00 - bounded recovery after a routed authentication rejection
 
 - Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`

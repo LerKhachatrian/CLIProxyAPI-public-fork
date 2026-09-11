@@ -125,8 +125,12 @@ func monitorIdentity(a *coreauth.Auth, now time.Time) codexmonitor.Identity {
 	status := strings.ToLower(a.StatusMessage)
 	invalidAuth := strings.Contains(status, "invalid_grant") || strings.Contains(status, "oauth expired")
 	if a.LastError != nil {
-		invalidAuth = invalidAuth || a.LastError.HTTPStatus == 401 || strings.Contains(strings.ToLower(a.LastError.Code), "invalid_grant")
+		invalidAuth = invalidAuth || strings.Contains(strings.ToLower(a.LastError.Code), "invalid_grant")
 	}
+	// A rejected access token may still be renewable. A generic HTTP 401 is
+	// not a permanent exclusion: after the existing retry floor, the bounded
+	// usage adapter can ask the auth owner to recover it. Invalid grants stay
+	// blocked, and neither routing nor credential-owner backoff is cleared.
 	// A timed exclusion may recover normally after its deadline. An untimed
 	// exclusion or deterministic authentication failure needs owner recovery.
 	id.Blocked = invalidAuth || (a.Unavailable && (id.RetryAt.IsZero() || id.RetryAt.After(now)))

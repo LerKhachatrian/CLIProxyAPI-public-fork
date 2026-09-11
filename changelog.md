@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-11 08:36:00 -04:00 - bounded recovery after a routed authentication rejection
+
+- Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`
+- Removed the indefinite monitor exclusion for a generic prior HTTP 401. Existing timed account/quota exclusions must still expire before the usage adapter can reach the existing credential owner; explicit invalid-grant/OAuth-expired signals, disabled or untimed exclusions and renewal backoff remain protected.
+- Added a coordinator-to-adapter-to-owner regression for elapsed and future retries, untimed exclusion, invalid-grant code/status, OAuth expiry, quota recovery time, disabled identity and owner cooldown. A successful synthetic renewal must adopt its actual Pro observation under the new plan identity; no test may fetch reset inventory or manufacture a reading.
+- Pre-change verification confirmed clean source `480ccbd10fe7c58e15efdac1233c56abda66a4ed` and independently healthy deployed binary `8b4569ce4954cabf275b60fc83f6530e4fea4110902ff0cb44176485fab5ccb0`. Test execution, immutable staging and live account acceptance are separate delivery evidence, not implied by this implementation entry.
+- Verification follow-up: the old-guard overlay reproduces the indefinite exclusion, and the corrected coordinator/adapter/auth-owner regression passes all nine cases. The disabled-account fixture was corrected after operator confirmation to require a retained row without observation authority; the older deterministic-rejection fixture now explicitly supplies `invalid_grant`.
+- All applicable Go test cases pass across a complete batch excluding only `TestXAIExecutorExecuteVideosCreate` and three isolated runs of that unchanged test. Ordinary combined invocations, including reduced package concurrency, still report its unrelated zero-TTFT assertion. Preserve that batch-only validation limit; no xAI production code or assertion was weakened. The installed Widget 0.43 individual usage action independently produced a newer real provider observation. New-binary staging and live acceptance remain separate gates.
+
 ## 2026-09-09 19:41:00 -04:00 - usage-refresh delivery isolated pending coordination
 
 - Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`

@@ -278,7 +278,7 @@ func TestCodexMonitorIdentityRaceAndExcludedAccount(t *testing.T) {
 	if monitorIdentity(changed, time.Now()).Blocked {
 		t.Fatal("expired exclusion treated as indefinite")
 	}
-	changed.LastError = &coreauth.Error{HTTPStatus: 401}
+	changed.LastError = &coreauth.Error{HTTPStatus: 401, Code: "invalid_grant"}
 	if !monitorIdentity(changed, time.Now()).Blocked {
 		t.Fatal("deterministic rejection ignored")
 	}

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-11 19:52:00 -04:00 - preserve fresh credentials in targeted reconnect runtime state
+
+- Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`
+- Fixed the targeted reconnect builder's split between persisted token storage and runtime credential metadata. The runtime replacement now carries fresh ID/access/refresh tokens, expiry, last-refresh time and provider type from the same verified exchange, so it cannot overwrite an already hydrated account with a credential-less entry.
+- Extended the existing fake OAuth callback/save/runtime tests to require matching persisted/runtime credentials, request-token selection and valid expiry, including a post-persistence hydration hook. Existing exact-account, operator-metadata and no-mutation rejection guards remain unchanged.
+- Source-level verification traced the reported reconnect success followed by repeated `oauth_rejected` usage failures to metadata-only runtime replacement. The pre-change repository was clean at `abeabb4a8a977c7163aa87352475d0a2a8f08def`; old-source negative control, automated results, immutable staging and live quota acceptance are separate delivery evidence, not implied by this implementation entry.
+- Reused the existing reconnect owner and deployment machinery. No Widget changes, additional service, poller, credential-file operator edit, quota-state clear, reset action, priority change or affinity change belongs to this repair.
+
 ## 2026-09-11 09:11:00 -04:00 - usage recovery deployed with explicit account acceptance limit
 
 - Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`

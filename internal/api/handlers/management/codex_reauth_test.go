@@ -196,6 +196,28 @@ func waitForCodexReauthStatus(t *testing.T, router http.Handler, state string) m
 	return nil
 }
 
+func assertCodexReauthRuntimeCredentials(t *testing.T, auth *coreauth.Auth, persisted map[string]any) {
+	t.Helper()
+	if auth == nil {
+		t.Fatal("reauthenticated runtime account is missing")
+	}
+	for _, key := range []string{"type", "id_token", "access_token", "refresh_token", "expired", "last_refresh", "email", "account_id"} {
+		want, ok := persisted[key].(string)
+		if !ok || want == "" {
+			t.Fatalf("persisted fixture is missing %s", key)
+		}
+		if auth.Metadata[key] != want {
+			t.Errorf("runtime %s does not match the newly persisted credential", key)
+		}
+	}
+	if tokenValueForAuth(auth) != persisted["access_token"] {
+		t.Error("management requests cannot select the newly issued access token")
+	}
+	if !auth.HasValidAccessToken(time.Now()) {
+		t.Error("reauthenticated runtime account has no valid access-token lifetime")
+	}
+}
+
 func TestRequestCodexTokenTargetedReauthReplacesOnlyMatchingAccount(t *testing.T) {
 	withReauthFakeCodexService(t, "acct-target", "target@example.test")
 	fixture := newCodexReauthFixture(t)
@@ -256,6 +278,46 @@ func TestRequestCodexTokenTargetedReauthReplacesOnlyMatchingAccount(t *testing.T
 	updated, ok := fixture.manager.GetByID(fixture.authID)
 	if !ok || updated.Metadata["account_id"] != "acct-target" || updated.Status != coreauth.StatusActive {
 		t.Fatalf("runtime auth was not refreshed safely: %#v", updated)
+	}
+	assertCodexReauthRuntimeCredentials(t, updated, persisted)
+}
+
+func TestRequestCodexTokenTargetedReauthPreservesHydratedRuntimeCredentials(t *testing.T) {
+	withReauthFakeCodexService(t, "acct-target", "target@example.test")
+	fixture := newCodexReauthFixture(t)
+	hydratedRecords := make(chan *coreauth.Auth, 1)
+	fixture.handler.postAuthPersistHook = func(ctx context.Context, record *coreauth.Auth) error {
+		updated, errUpdate := fixture.manager.Update(coreauth.WithSkipPersist(ctx), record)
+		if errUpdate == nil && updated != nil {
+			hydratedRecords <- updated.Clone()
+		}
+		return errUpdate
+	}
+	state := startTargetedCodexReauth(t, fixture.router, fixture.authIndex)
+	defer CompleteOAuthSession(state)
+	if _, errCallback := WriteOAuthCallbackFileForPendingSession(fixture.authDir, "codex", state, "after-load", ""); errCallback != nil {
+		t.Fatalf("write targeted callback: %v", errCallback)
+	}
+	status := waitForCodexReauthStatus(t, fixture.router, state)
+	if status["status"] != "ok" || status["result"] != "reconnected" {
+		t.Fatalf("unexpected targeted reauth status: %#v", status)
+	}
+	var hydrated *coreauth.Auth
+	select {
+	case hydrated = <-hydratedRecords:
+	default:
+		t.Fatal("persisted account was not hydrated into the runtime")
+	}
+	if tokenValueForAuth(hydrated) != "fixture-access-token-after-load" {
+		t.Fatal("persisted-account hook did not receive the fresh credential")
+	}
+	updated, ok := fixture.manager.GetByID(fixture.authID)
+	if !ok {
+		t.Fatal("reauthenticated runtime account was removed")
+	}
+	assertCodexReauthRuntimeCredentials(t, updated, hydrated.Metadata)
+	if updated.Disabled || updated.Status != coreauth.StatusActive || updated.Attributes["priority"] != "17" {
+		t.Fatal("credential handoff changed the account's enabled state or priority")
 	}
 }
 

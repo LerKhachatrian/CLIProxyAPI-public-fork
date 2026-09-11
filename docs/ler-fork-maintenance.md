@@ -44,6 +44,14 @@ in [`codex-client-oauth-access.md`](codex-client-oauth-access.md).
 
 Each customization requires focused regression tests. A clean merge without passing behavior tests is not acceptance.
 
+## Targeted reconnect credential handoff
+
+The targeted reconnect builder must populate runtime `Auth.Metadata` with the fresh ID, access and refresh tokens, expiry, last-refresh time, provider type and verified identity from the same OAuth exchange used by `CodexTokenStorage`. Storage persistence alone is insufficient: request execution, management usage reads and credential recovery consume runtime metadata, not the storage object. Existing metadata merging intentionally excludes old credential fields.
+
+The post-persistence runtime update must preserve those fresh credentials even when a persistence hook has already synthesized and loaded the saved account. Keep this projection inside the existing reconnect owner; do not add a watcher, refresh loop, alternate credential store or direct operator credential edits. Preserve exact-target validation, same-account checks, approved routing metadata and disabled state.
+
+Acceptance includes the fake callback/save/runtime workflow with and without the post-persistence hydration hook, matching persisted/runtime credential fields, a usable request token and valid expiry, plus the existing wrong-account and unsupported-target zero-mutation cases. A reported OAuth success is not proof of a fresh quota observation; live acceptance still requires the real account's usage read under the shared scheduler and its existing cooldowns.
+
 ## Session-affinity reset contract
 
 The authenticated management API owns the recurring "apply priorities, then rebind sessions" operation:

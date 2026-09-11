@@ -282,10 +282,18 @@ func (target *codexReauthTarget) verifyIdentity(storage *codex.CodexTokenStorage
 }
 
 func (target *codexReauthTarget) buildRecord(storage *codex.CodexTokenStorage) *coreauth.Auth {
-	metadata := make(map[string]any, len(target.allowedMetadata)+2)
+	metadata := make(map[string]any, len(target.allowedMetadata)+8)
 	for key, value := range target.allowedMetadata {
 		metadata[key] = value
 	}
+	// Storage owns persistence, but requests and credential recovery read Metadata.
+	// Populate both from this exchange before replacing any hydrated runtime entry.
+	metadata["type"] = "codex"
+	metadata["id_token"] = storage.IDToken
+	metadata["access_token"] = storage.AccessToken
+	metadata["refresh_token"] = storage.RefreshToken
+	metadata["expired"] = storage.Expire
+	metadata["last_refresh"] = storage.LastRefresh
 	metadata["email"] = strings.TrimSpace(storage.Email)
 	metadata["account_id"] = strings.TrimSpace(storage.AccountID)
 

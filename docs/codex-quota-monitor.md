@@ -276,3 +276,9 @@ This current contract supersedes older statements that categorically prohibit cr
 - Usage intents remain pending across account/lane cooldowns and the duplicate-attempt floor. Selection still enforces one in-flight observation, the configured gap, the six-starts-per-minute ceiling, and the eight-hour pending bound.
 - Reset-inventory queuing retains its original cooldown and recent-attempt guards. Reset reads, 403, 429, and Retry-After responses do not initiate OAuth recovery.
 - Do not clear quota state, alter priorities or affinity, edit credential files directly, or generate model requests merely to refresh balances. Do not log provider bodies or credentials.
+
+## File-source recovery classification (2026-09-11)
+
+Quota credential recovery uses the auth owner's central AuthSourceKind classification. The real watcher loads file-backed accounts with source/path/backend attributes and need not populate FileName; a missing legacy filename must not prevent eligible recovery. Explicit runtime, configuration or external-store ownership takes precedence over a leftover filename or path and remains ineligible for this file-owned operation.
+
+The existing per-account lock, identity/registration checks, renewal persistence, cooldowns and single shared observation deadline remain authoritative. Real-loader regression tests cover the production construction path and token reuse; source-boundary cases cover non-file exclusions. Passing these tests does not establish current provider balances or successful live renewal: installed single-account and bulk usage observations remain separate delivery acceptance.

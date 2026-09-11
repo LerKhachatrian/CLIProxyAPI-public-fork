@@ -441,7 +441,7 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 // registration, or refreshes a disabled or externally owned credential.
 func (m *Manager) RecoverQuotaCredential(ctx context.Context, failed *Auth) (*Auth, error) {
 	if failed == nil || !strings.EqualFold(failed.Provider, "codex") ||
-		failed.FileName == "" || !authHasRefreshCredential(failed) {
+		failed.AuthSourceKind() != AuthSourceFile || !authHasRefreshCredential(failed) {
 		return nil, errors.New("quota credential recovery is unavailable")
 	}
 	return m.refreshAuthForRequestGuarded(ctx, failed.ID, authAccessToken(failed), failed)

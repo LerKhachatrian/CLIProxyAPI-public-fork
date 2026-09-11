@@ -219,3 +219,12 @@ The full Go suite is not green: TestFair128AccountBudgetAndNoStartupSweep observ
 Session: 01a08348-fdd5-76a1-8112-2351fbdd7ac9.
 
 Ler approved the correction. Deferred intent retention now applies only to usage refresh; all original reset-lane cooldown and recent-attempt guards are preserved. The full Go suite passed with go test ./... -count=1, including the 128-account fairness regression. Updated the current ownership and recovery contract. Binary staging and installed acceptance follow separately; this entry does not claim live deployment.
+
+## 2026-09-11T12:03:31Z - Correct quota recovery file-source eligibility
+
+Session: 01a08348-fdd5-76a1-8112-2351fbdd7ac9.
+
+- Reuse AuthSourceKind instead of requiring FileName: the production watcher establishes file ownership through source/path attributes without populating FileName.
+- Add a regression through the real file synthesizer, prove stale callers reuse one renewal, and reject explicit memory/config/git/object-store/Postgres/runtime-only sources even when a legacy filename and path are present.
+- Verification: focused auth/management/coordinator packages and the complete go test -p 2 ./... suite passed. Running the new cases against the committed old guard reproduced the missing file recovery and non-file eligibility failures.
+- Delivery boundary: candidate build, isolated binary staging and a new hash-locked live cutover remain pending. No account cooldown, priority, affinity, credential file or displayed balance was changed by this source correction.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-12 19:55:02 -04:00 - give media TTFT fixtures measurable latency
+
+- Session ID: `01a097e8-2311-7e52-938b-1b26fc227356`
+- Reproduced the intermittent Windows image-test failure through the actual media executor: a successful loopback request had 528.9 microseconds of total latency, a measured zero first-byte duration and the expected synthetic account identity. The installed Go 1.26.2 monotonic clock reads Windows interrupt time; an instantaneous fake response cannot guarantee a positive tick interval.
+- Added 40 milliseconds of synthetic response latency to the existing positive image/video TTFT fixtures, matching the shared transport test's precedent. Both original positive-TTFT assertions and all production timing code remain intact; the two cases pass 30 repetitions each. Diagnostic overlays and initial failure evidence remain outside Git.
+
 ## 2026-09-11 20:16:10 -04:00 - targeted reconnect repair deployed and account recovered
 
 - Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`

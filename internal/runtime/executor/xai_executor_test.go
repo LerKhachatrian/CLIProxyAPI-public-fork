@@ -3227,6 +3227,8 @@ func TestXAIExecutorExecuteImagesUsesImagesEndpointAndPublishesUsage(t *testing.
 		if errRead != nil {
 			t.Fatalf("read body: %v", errRead)
 		}
+		// A positive TTFT needs measurable latency; loopback can finish within one Windows clock tick.
+		time.Sleep(40 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"created":123,"data":[{"b64_json":"AA=="}],"usage":{"cost_in_usd_ticks":250000}}`))
 	}))
@@ -3600,6 +3602,8 @@ func TestXAIExecutorExecuteVideosCreate(t *testing.T) {
 		if errRead != nil {
 			t.Fatalf("read body: %v", errRead)
 		}
+		// A positive TTFT needs measurable latency; loopback can finish within one Windows clock tick.
+		time.Sleep(40 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"request_id":"vid_123"}`))
 	}))

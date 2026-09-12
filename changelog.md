@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-11 20:16:10 -04:00 - targeted reconnect repair deployed and account recovered
+
+- Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`
+- Published implementation `a24c007a8638239b394e39f358954f758503ee28` and immutable source tag `ler-live-20260911-a24c007a`. The Go 1.26.2 candidate records that exact revision with `vcs.modified=false`; canonical SHA-256 is `2cbc9107d9b0c8dfba14859bb2861b9bc379b9051f26e0efedb4ddb354bf9e25`.
+- The old-source negative control fails both runtime-credential regressions. Corrected targeted cases, all seven affected packages and the Codex executor subset pass. Exact-candidate passive-monitor/restart and external-respawner/automatic-rollback staging pass without real-account test requests. This is not a new full-suite claim; the previously recorded unrelated combined-suite xAI timing limitation remains.
+- Fresh disk-budget and hash/owner/health preflight, the interruption warning and action-time acknowledgment preceded the guarded cutover. The retained rollback matches `4a1f4e3fc2832426c5a3734f82a07bdf4bf6f01640f9d07907f92c6948210d4d`. The canonical new process independently serves HTTP 200 with the accepted hash after the deployment owner exits.
+- Normal credential hydration and subsequent routed traffic now supply a fresh Pro usage observation for the previously unavailable account. Installed Widget 0.43's read-only quota snapshot confirms the matching monitor identity, enabled/available state, no re-sign-in requirement, non-stale usage and 100 percent weekly remaining. No manual provider check, generated test message or second sign-in was needed for this acceptance.
+- The passive observation does not report a primary five-hour entitlement; it remains unknown, not inferred from additional quota. Reset inventory is independently unobserved at this readback. Native accessibility did not expose the selected card, so acceptance is installed-CLI data evidence, not a visual-layout claim.
+- All runtime account indices, priorities and enabled states match the sanitized pre-cutover baseline; session affinity remains enabled. Widget installation/source, configuration, Auto policies, reset actions, Desktop, SSH and App Servers are unchanged. This documentation-only delivery successor is not the binary's build source; the separate new Widget UI remains deferred.
+
 ## 2026-09-11 19:52:00 -04:00 - preserve fresh credentials in targeted reconnect runtime state
 
 - Session ID: `01a08348-fdd5-76a1-8112-2351fbdd7ac9`

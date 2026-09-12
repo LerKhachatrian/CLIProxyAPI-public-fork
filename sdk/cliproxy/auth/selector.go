@@ -887,6 +887,7 @@ type SessionAffinitySelector struct {
 	matcher          *cliproxysession.MerklePrefixMatcher
 	subagentAffinity bool
 	resetMu          sync.RWMutex
+	family           *familyRouter
 }
 
 // SessionAffinityConfig configures the session affinity selector.
@@ -894,6 +895,7 @@ type SessionAffinityConfig struct {
 	Fallback         Selector
 	TTL              time.Duration
 	SubagentAffinity *bool
+	Family           *FamilyRoutingConfig
 }
 
 // NewSessionAffinitySelector creates a new session-aware selector.
@@ -916,12 +918,16 @@ func NewSessionAffinitySelectorWithConfig(cfg SessionAffinityConfig) *SessionAff
 	if cfg.SubagentAffinity != nil {
 		subagentAffinity = *cfg.SubagentAffinity
 	}
-	return &SessionAffinitySelector{
+	selector := &SessionAffinitySelector{
 		fallback:         cfg.Fallback,
 		cache:            NewSessionCache(cfg.TTL),
 		matcher:          cliproxysession.NewMerklePrefixMatcher(cfg.TTL),
 		subagentAffinity: subagentAffinity,
 	}
+	if cfg.Family != nil {
+		selector.family = newFamilyRouter(*cfg.Family)
+	}
+	return selector
 }
 
 // Trees returns a backward-compatible in-memory session tree store.
@@ -946,6 +952,9 @@ func (s *SessionAffinitySelector) Trees() *cliproxysession.InMemorySessionTreeSt
 func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model string, opts cliproxyexecutor.Options, auths []*Auth) (*Auth, error) {
 	s.resetMu.RLock()
 	defer s.resetMu.RUnlock()
+	if s.family != nil && familyCodexCandidates(provider, auths) {
+		return s.family.pick(ctx, model, opts, auths)
+	}
 
 	entry := selectorLogEntry(ctx)
 	if opts.Metadata == nil {
@@ -1242,6 +1251,9 @@ func (s *SessionAffinitySelector) Stop() {
 	if s == nil {
 		return
 	}
+	if s.family != nil {
+		s.family.stop()
+	}
 	if s.cache != nil {
 		s.cache.Stop()
 	}
@@ -1258,6 +1270,9 @@ func (s *SessionAffinitySelector) InvalidateAuth(authID string) {
 	}
 	s.resetMu.Lock()
 	defer s.resetMu.Unlock()
+	if s.family != nil {
+		s.family.invalidateAuth(authID)
+	}
 	if s.cache != nil {
 		s.cache.InvalidateAuth(authID)
 	}
@@ -1268,6 +1283,9 @@ func (s *SessionAffinitySelector) InvalidateAuth(authID string) {
 
 // SessionAffinityBindingCount returns the number of cached session keys.
 func (s *SessionAffinitySelector) SessionAffinityBindingCount() int {
+	if s != nil && s.family != nil {
+		return s.family.status().Members
+	}
 	if s == nil || s.cache == nil {
 		return 0
 	}
@@ -1284,6 +1302,9 @@ func (s *SessionAffinitySelector) ResetSessionAffinity() int {
 	}
 	s.resetMu.Lock()
 	defer s.resetMu.Unlock()
+	if s.family != nil {
+		return s.family.resetAssignments()
+	}
 	cleared := 0
 	if s.cache != nil {
 		cleared = s.cache.Clear()
@@ -1297,6 +1318,10 @@ func (s *SessionAffinitySelector) ResetSessionAffinity() int {
 // OnResult handles session affinity binding or release based on execution outcome.
 func (s *SessionAffinitySelector) OnResult(res Result) {
 	if s == nil || res.AuthID == "" {
+		return
+	}
+	if token := familyTokenFromOptions(res.Options); token != nil {
+		token.router.onResult(token, res)
 		return
 	}
 

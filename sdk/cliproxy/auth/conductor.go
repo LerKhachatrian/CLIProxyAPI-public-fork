@@ -120,6 +120,10 @@ type Manager struct {
 	hook                      Hook
 	mu                        sync.RWMutex
 	selectorMu                sync.Mutex
+	routingGuardMu            sync.RWMutex
+	routingConfiguredFamily   bool
+	routingPendingFamily      int
+	familyQuotaSource         func(*Auth) FamilyQuotaObservation
 	configCooldownMu          sync.Mutex
 	auths                     map[string]*Auth
 	authEpochs                map[string]uint64
@@ -201,5 +205,6 @@ func NewManager(store Store, selector Selector, hook Hook) *Manager {
 		manager.ApplyHomeInFlightPublisherConfig(defaultInFlightConfig)
 	}
 	manager.scheduler = newAuthScheduler(selector)
+	manager.attachFamilySelector(selector)
 	return manager
 }

@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,4 +31,26 @@ func TestUpstreamAttemptObserverIsOncePerTrackerAndInheritedByRetry(t *testing.T
 	}
 	MarkUpstreamAttempt(nil)
 	MarkUpstreamAttempt(WithUpstreamAttemptObserver(WithUpstreamAttemptTracker(nil), nil))
+}
+
+func TestUpstreamAttemptGuardSurvivesRetryAndPreservesCause(t *testing.T) {
+	refusal := errors.New("synthetic family reassignment")
+	checks, observed := 0, 0
+	ctx := WithUpstreamAttemptGuard(nil, func() error { checks++; return refusal })
+	ctx = WithUpstreamAttemptObserver(ctx, func() { observed++ })
+	for i := 0; i < 2; i++ {
+		ctx = WithUpstreamAttemptTracker(ctx)
+		err := CheckUpstreamAttempt(ctx)
+		if !errors.Is(err, refusal) || !IsUpstreamAttemptGuardError(err) || UpstreamAttempted(ctx) {
+			t.Fatal("guard lost identity or recorded a refused attempt")
+		}
+	}
+	if checks != 2 || observed != 0 {
+		t.Fatal("retry lost guard or fired observation")
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := CheckUpstreamAttempt(canceled); !errors.Is(err, context.Canceled) || checks != 2 {
+		t.Fatal("canceled context reached admission callback")
+	}
 }

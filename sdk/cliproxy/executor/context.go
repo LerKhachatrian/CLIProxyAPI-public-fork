@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 )
 
@@ -9,6 +10,42 @@ type downstreamWebsocketContextKey struct{}
 type requireUpstreamWebsocketContextKey struct{}
 type upstreamAttemptTrackerContextKey struct{}
 type upstreamAttemptObserverContextKey struct{}
+type upstreamAttemptGuardContextKey struct{}
+
+// WithUpstreamAttemptGuard installs a bounded memory-only admission check.
+// It runs immediately before each transport attempt, including reconnects.
+// Unlike the observer, it may refuse an attempt before any provider bytes.
+func WithUpstreamAttemptGuard(ctx context.Context, guard func() error) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, upstreamAttemptGuardContextKey{}, guard)
+}
+
+type upstreamAttemptGuardError struct{ cause error }
+
+func (e *upstreamAttemptGuardError) Error() string { return e.cause.Error() }
+func (e *upstreamAttemptGuardError) Unwrap() error { return e.cause }
+
+func IsUpstreamAttemptGuardError(err error) bool {
+	var guardErr *upstreamAttemptGuardError
+	return errors.As(err, &guardErr)
+}
+
+func CheckUpstreamAttempt(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if guard, ok := ctx.Value(upstreamAttemptGuardContextKey{}).(func() error); ok && guard != nil {
+		if err := guard(); err != nil {
+			return &upstreamAttemptGuardError{cause: err}
+		}
+	}
+	return nil
+}
 
 type upstreamAttemptTracker struct {
 	attempted atomic.Bool

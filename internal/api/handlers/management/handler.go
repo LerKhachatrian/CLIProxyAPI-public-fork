@@ -68,8 +68,9 @@ type Handler struct {
 }
 
 type configReloadSnapshot struct {
-	cfg        *config.Config
-	generation uint64
+	cfg            *config.Config
+	generation     uint64
+	releaseRouting func()
 }
 
 // NewHandler creates a new management handler instance.
@@ -87,6 +88,12 @@ func NewHandler(cfg *config.Config, configFilePath string, manager *coreauth.Man
 		envSecret:           envSecret,
 	}
 	h.startAttemptCleanup()
+	if cfg != nil {
+		manager.SetRoutingFamilyConfigured(cfg.Routing.Strategy)
+		if coreauth.IsFamilyRoutingStrategy(cfg.Routing.Strategy) {
+			h.InitializeFamilyQuotaProjection()
+		}
+	}
 	return h
 }
 
@@ -132,7 +139,13 @@ func (h *Handler) SetConfig(cfg *config.Config) {
 	}
 	h.mu.Lock()
 	h.cfg = cfg
+	if cfg != nil {
+		h.authManager.SetRoutingFamilyConfigured(cfg.Routing.Strategy)
+	}
 	h.mu.Unlock()
+	if cfg != nil && coreauth.IsFamilyRoutingStrategy(cfg.Routing.Strategy) {
+		h.InitializeFamilyQuotaProjection()
+	}
 }
 
 // SetAuthManager updates the auth manager reference used by management endpoints.
@@ -181,16 +194,24 @@ func (h *Handler) reloadSnapshotConfigLocked() configReloadSnapshot {
 // saveConfigAndSnapshotLocked saves h.cfg and returns a full runtime config snapshot.
 // Callers must hold h.mu.
 func (h *Handler) saveConfigAndSnapshotLocked(c *gin.Context) (configReloadSnapshot, bool) {
+	release := h.authManager.ReserveFamilyRoutingConfig(h.cfg.Routing.Strategy)
 	if errSave := config.SaveConfigPreserveComments(h.configFilePath, h.cfg); errSave != nil {
+		release()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to save config: %v", errSave)})
 		return configReloadSnapshot{}, false
 	}
-	return h.reloadSnapshotConfigLocked(), true
+	h.authManager.SetRoutingFamilyConfigured(h.cfg.Routing.Strategy)
+	snapshot := h.reloadSnapshotConfigLocked()
+	snapshot.releaseRouting = release
+	return snapshot, true
 }
 
 // reloadConfigAfterManagementSave reloads from an independent config snapshot.
 // Callers must pass a full Config clone captured immediately after a successful save.
 func (h *Handler) reloadConfigAfterManagementSave(ctx context.Context, snapshot configReloadSnapshot) {
+	if snapshot.releaseRouting != nil {
+		defer snapshot.releaseRouting()
+	}
 	if h == nil || snapshot.cfg == nil || snapshot.generation == 0 {
 		return
 	}
@@ -206,6 +227,9 @@ func (h *Handler) reloadConfigAfterManagementSave(ctx context.Context, snapshot 
 	host := h.pluginHost
 	h.mu.Unlock()
 	if hook != nil {
+		if coreauth.IsFamilyRoutingStrategy(snapshot.cfg.Routing.Strategy) {
+			h.InitializeFamilyQuotaProjection()
+		}
 		hook(ctx, snapshot.cfg)
 	} else if host != nil {
 		host.ApplyConfig(ctx, snapshot.cfg)
@@ -222,6 +246,9 @@ func (h *Handler) reloadConfigAfterManagementSave(ctx context.Context, snapshot 
 // Callers must pass a full Config clone captured immediately after a successful save.
 func (h *Handler) reloadConfigAfterManagementSaveAsync(ctx context.Context, snapshot configReloadSnapshot) {
 	if h == nil || snapshot.cfg == nil || snapshot.generation == 0 {
+		if snapshot.releaseRouting != nil {
+			snapshot.releaseRouting()
+		}
 		return
 	}
 	reloadCtx := context.Background()
@@ -411,12 +438,10 @@ func (h *Handler) persist(c *gin.Context) bool {
 // persistLocked saves the current in-memory config to disk.
 // It expects the caller to hold h.mu.
 func (h *Handler) persistLocked(c *gin.Context) bool {
-	// Preserve comments when writing
-	if err := config.SaveConfigPreserveComments(h.configFilePath, h.cfg); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to save config: %v", err)})
+	snapshot, saved := h.saveConfigAndSnapshotLocked(c)
+	if !saved {
 		return false
 	}
-	snapshot := h.reloadSnapshotConfigLocked()
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	var reqCtx context.Context
 	if c != nil && c.Request != nil {

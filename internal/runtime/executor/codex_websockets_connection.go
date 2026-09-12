@@ -28,6 +28,9 @@ const (
 )
 
 func (e *CodexWebsocketsExecutor) dialCodexWebsocket(ctx context.Context, auth *cliproxyauth.Auth, wsURL string, headers http.Header) (*websocket.Conn, *websocketConnectionCloser, *http.Response, error) {
+	if errGuard := cliproxyexecutor.CheckUpstreamAttempt(ctx); errGuard != nil {
+		return nil, nil, nil, errGuard
+	}
 	dialer := newProxyAwareWebsocketDialer(e.cfg, auth)
 	dialer.HandshakeTimeout = codexResponsesWebsocketHandshakeTO
 	dialer.EnableCompression = true
@@ -57,6 +60,14 @@ func writeCodexWebsocketMessage(sess *codexWebsocketSession, conn *websocket.Con
 	return conn.WriteMessage(websocket.TextMessage, payload)
 }
 
+func writeGuardedCodexWebsocketMessage(ctx context.Context, sess *codexWebsocketSession, conn *websocket.Conn, payload []byte) error {
+	if errGuard := cliproxyexecutor.CheckUpstreamAttempt(ctx); errGuard != nil {
+		return errGuard
+	}
+	cliproxyexecutor.MarkUpstreamAttempt(ctx)
+	return writeCodexWebsocketMessage(sess, conn, payload)
+}
+
 func mapCodexWebsocketWriteError(sess *codexWebsocketSession, conn *websocket.Conn, err error) error {
 	if err == nil || sess == nil || conn == nil {
 		return err
@@ -70,7 +81,7 @@ func mapCodexWebsocketWriteError(sess *codexWebsocketSession, conn *websocket.Co
 }
 
 func shouldRetryCodexWebsocketSend(err error) bool {
-	if err == nil {
+	if err == nil || cliproxyexecutor.IsUpstreamAttemptGuardError(err) {
 		return false
 	}
 	var requestErr cliproxyexecutor.RequestScopedError

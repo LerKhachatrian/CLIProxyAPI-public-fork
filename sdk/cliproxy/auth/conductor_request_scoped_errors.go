@@ -183,6 +183,11 @@ func matchRequestScopedErrorAction(auth *Auth, err error, cfg *internalconfig.Co
 	if err == nil {
 		return "", false
 	}
+	var familyErr *familyRoutingError
+	if errors.As(err, &familyErr) {
+		// Local admission and persistence refusals are never provider failures.
+		return "", false
+	}
 	rules := extractRequestScopedErrorRules(auth, cfg)
 	if len(rules) == 0 {
 		return "", false

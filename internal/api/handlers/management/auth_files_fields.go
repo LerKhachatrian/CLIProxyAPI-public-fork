@@ -207,6 +207,11 @@ func (h *Handler) PatchAuthFileFields(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "core auth manager unavailable"})
 		return
 	}
+	releaseGuard, allowed := h.guardRoutingMutation(c)
+	if !allowed {
+		return
+	}
+	defer releaseGuard()
 
 	var req map[string]json.RawMessage
 	decoder := json.NewDecoder(c.Request.Body)

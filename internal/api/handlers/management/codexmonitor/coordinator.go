@@ -12,21 +12,24 @@ import (
 )
 
 type Coordinator struct {
-	mu           sync.Mutex
-	store        Store
-	state        control
-	entries      map[string]*Entry
-	dirty        map[string]bool
-	lastFlush    time.Time
-	inFlight     bool
-	inFlightKey  string
-	inFlightLane string
-	closed       bool
-	clock        func() time.Time
-	random       func(int64) int64
-	storageError bool
-	recoverRead  bool
-	recoverReset bool
+	mu            sync.Mutex
+	store         Store
+	state         control
+	entries       map[string]*Entry
+	dirty         map[string]bool
+	lastFlush     time.Time
+	inFlight      bool
+	inFlightKey   string
+	inFlightLane  string
+	closed        bool
+	clock         func() time.Time
+	random        func(int64) int64
+	storageError  bool
+	recoverRead   bool
+	recoverReset  bool
+	routingWeekly map[string]routingWeeklyExhaustion
+	routingDirty  bool
+	routingError  error
 }
 
 func New(store Store) (*Coordinator, error) {
@@ -36,7 +39,12 @@ func New(store Store) (*Coordinator, error) {
 		return nil, err
 	}
 	c := &Coordinator{store: store, state: state, entries: entries, dirty: map[string]bool{}, clock: time.Now, random: rand.Int64N}
+	if errRouting := c.loadRoutingWeekly(); errRouting != nil {
+		_ = store.Close()
+		return nil, errRouting
+	}
 	for _, entry := range entries {
+		c.observeRoutingWeekly(entry.Key, entry.Usage, c.clock())
 		c.recoverRead = c.recoverRead || entry.UsageSchedule.Error == "interrupted_check" || entry.ResetSchedule.Error == "interrupted_check"
 		c.recoverReset = c.recoverReset || entry.ResetSchedule.Error == "interrupted_check"
 	}
@@ -136,6 +144,8 @@ func (c *Coordinator) reconcile(ids []Identity, p Policy, now time.Time) error {
 		}
 		if u := id.Passive; useful(u) && !u.ObservedAt.After(now) && u.ObservedAt.After(e.InvalidatedAt) && now.Sub(u.ObservedAt) <= 48*time.Hour &&
 			(e.Usage == nil || u.ObservedAt.After(e.Usage.ObservedAt)) {
+			c.observeRoutingWeekly(id.Key, e.Usage, now)
+			c.observeRoutingWeekly(id.Key, u, now)
 			e.Usage = cloneUsage(u, now)
 			if useful(e.Usage) && (e.UsageSchedule.ErrorAt.IsZero() || u.ObservedAt.After(e.UsageSchedule.ErrorAt)) {
 				// Passive success supplies a new reading, not permission to bypass a
@@ -234,6 +244,10 @@ func (c *Coordinator) usageDelay(id Identity, p Policy, anchor time.Time) time.D
 func (c *Coordinator) flush(force bool, now time.Time) error {
 	if !force && !c.storageError && !c.lastFlush.IsZero() && now.Sub(c.lastFlush) < time.Minute {
 		return nil
+	}
+	if err := c.flushRoutingWeekly(now); err != nil {
+		c.storageError = true
+		return err
 	}
 	for key := range c.dirty {
 		if err := c.store.saveEntry(c.entries[key]); err != nil {
@@ -503,6 +517,8 @@ func (c *Coordinator) applyResult(e *Entry, lane *Lane, kind string, r Result, n
 	if kind == UsageLane {
 		valid = valid && useful(r.Usage) && !r.Usage.ObservedAt.After(now)
 		if valid && (e.Usage == nil || !r.Usage.ObservedAt.Before(e.Usage.ObservedAt)) {
+			c.observeRoutingWeekly(e.Key, e.Usage, now)
+			c.observeRoutingWeekly(e.Key, r.Usage, now)
 			e.Usage = cloneUsage(r.Usage, now)
 		}
 	} else {

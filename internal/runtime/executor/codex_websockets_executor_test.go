@@ -26,6 +26,65 @@ import (
 
 var benchmarkBuildCodexWebsocketRequestBodyOutput []byte
 
+func TestCodexWebsocketAdmissionGuardPrecedesDialAndReusedSocketWrite(t *testing.T) {
+	var upgrades, messages atomic.Int32
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	finished := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		upgrades.Add(1)
+		conn, err := upgrader.Upgrade(w, req, nil)
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close(); close(finished) }()
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+			messages.Add(1)
+		}
+	}))
+	defer server.Close()
+	refusal := errors.New("synthetic family changed")
+	allowed := false
+	ctx := cliproxyexecutor.WithUpstreamAttemptGuard(t.Context(), func() error {
+		if !allowed {
+			return refusal
+		}
+		return nil
+	})
+	ctx = cliproxyexecutor.WithUpstreamAttemptTracker(ctx)
+	e := NewCodexWebsocketsExecutor(&config.Config{})
+	url := "ws" + strings.TrimPrefix(server.URL, "http")
+	if conn, _, _, err := e.dialCodexWebsocket(ctx, nil, url, nil); conn != nil || !errors.Is(err, refusal) || upgrades.Load() != 0 || cliproxyexecutor.UpstreamAttempted(ctx) {
+		t.Fatalf("refused websocket dial crossed transport: %v", err)
+	}
+	allowed = true
+	conn, closer, _, err := e.dialCodexWebsocket(ctx, nil, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closer.Close()
+	if err := writeGuardedCodexWebsocketMessage(ctx, nil, conn, []byte(`{"type":"response.create"}`)); err != nil {
+		t.Fatal(err)
+	}
+	allowed = false
+	ctx = cliproxyexecutor.WithUpstreamAttemptTracker(ctx)
+	err = writeGuardedCodexWebsocketMessage(ctx, nil, conn, []byte(`{"type":"response.create","previous_response_id":"synthetic"}`))
+	if !errors.Is(err, refusal) || shouldRetryCodexWebsocketSend(err) || cliproxyexecutor.UpstreamAttempted(ctx) {
+		t.Fatalf("refused continuation was sent or retried: %v", err)
+	}
+	closer.Close()
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("scripted websocket did not close")
+	}
+	if upgrades.Load() != 1 || messages.Load() != 1 {
+		t.Fatalf("provider saw %d dials, %d writes", upgrades.Load(), messages.Load())
+	}
+}
+
 func TestBuildCodexWebsocketRequestBodyPreservesPreviousResponseID(t *testing.T) {
 	body := []byte(`{"model":"gpt-5-codex","previous_response_id":"resp-1","input":[{"type":"message","id":"msg-1"}]}`)
 

@@ -426,6 +426,9 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 	executionModel, restoreExecutionModel := executionModelForAuthSelection(opts, req.Model)
 	opts = ensureRequestedModelMetadata(opts, routeModel)
 	homeMode := m.HomeEnabled()
+	if homeMode && m.FamilyRoutingEnabled() {
+		return cliproxyexecutor.Response{}, familyRequestError("family_home_incompatible", "family routing requires the local Codex auth manager", http.StatusConflict)
+	}
 	homeAuthCount := 1
 	tried := make(map[string]struct{})
 	if !homeMode {
@@ -436,6 +439,7 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 	attempted := make(map[string]struct{})
 	var lastErr error
 	var upstreamErr error
+	familyReselections := 0
 	for {
 		if maxRetryCredentials > 0 && len(attempted) >= maxRetryCredentials {
 			if lastErr != nil {
@@ -512,6 +516,10 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 			startExec := time.Now()
 			resp, errExec := executeWithRequestActivity(execCtx, executor, auth, execReq, execOpts)
 			errExec = markUpstreamExecutionAttemptFromContext(execCtx, errExec)
+			if isFamilyReselect(errExec) {
+				authErr = errExec
+				break
+			}
 			durationExec := time.Since(startExec)
 			if errExec != nil {
 				if hasUpstreamExecutionAttempt(errExec) {
@@ -586,6 +594,12 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 			return resp, nil
 		}
 		if authErr != nil {
+			if retryFamilySelection(authErr, auth.ID, opts, tried, attempted, &familyReselections) {
+				continue
+			}
+			if isFamilyReselect(authErr) {
+				return cliproxyexecutor.Response{}, authErr
+			}
 			action, okAction := matchRequestScopedErrorAction(auth, authErr, m.runtimeConfigSnapshot())
 			if okAction {
 				if isRequestScopedStop(action, okAction) {
@@ -617,6 +631,9 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 	executionModel, restoreExecutionModel := executionModelForAuthSelection(opts, req.Model)
 	opts = ensureRequestedModelMetadata(opts, routeModel)
 	homeMode := m.HomeEnabled()
+	if homeMode && m.FamilyRoutingEnabled() {
+		return cliproxyexecutor.Response{}, familyRequestError("family_home_incompatible", "family routing requires the local Codex auth manager", http.StatusConflict)
+	}
 	homeAuthCount := 1
 	tried := make(map[string]struct{})
 	if !homeMode {
@@ -627,6 +644,7 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 	attempted := make(map[string]struct{})
 	var lastErr error
 	var upstreamErr error
+	familyReselections := 0
 	for {
 		if maxRetryCredentials > 0 && len(attempted) >= maxRetryCredentials {
 			if lastErr != nil {
@@ -701,8 +719,12 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 				execReq = attachResolvedAPIKeyModelInfo(routing, execReq, auth, routeModel, upstreamModel)
 			}
 			startExec := time.Now()
-			resp, errExec := executor.CountTokens(execCtx, auth, execReq, execOpts)
+			resp, errExec := countWithFamilyAdmission(execCtx, executor, auth, execReq, execOpts)
 			errExec = markUpstreamExecutionAttemptFromContext(execCtx, errExec)
+			if isFamilyReselect(errExec) {
+				authErr = errExec
+				break
+			}
 			durationExec := time.Since(startExec)
 			if errExec != nil {
 				if hasUpstreamExecutionAttempt(errExec) {
@@ -717,7 +739,7 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 					didRefreshOnUnauthorized = true
 					execCtx = newUpstreamAttemptContext(execCtx)
 					startRetry := time.Now()
-					resp, errExec = executor.CountTokens(execCtx, auth, execReq, execOpts)
+					resp, errExec = countWithFamilyAdmission(execCtx, executor, auth, execReq, execOpts)
 					errExec = markUpstreamExecutionAttemptFromContext(execCtx, errExec)
 					durationRetry := time.Since(startRetry)
 					if errExec != nil {
@@ -781,6 +803,12 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 			return resp, nil
 		}
 		if authErr != nil {
+			if retryFamilySelection(authErr, auth.ID, opts, tried, attempted, &familyReselections) {
+				continue
+			}
+			if isFamilyReselect(authErr) {
+				return cliproxyexecutor.Response{}, authErr
+			}
 			action, okAction := matchRequestScopedErrorAction(auth, authErr, m.runtimeConfigSnapshot())
 			if okAction {
 				if isRequestScopedStop(action, okAction) {
@@ -813,6 +841,9 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 	executionModel, restoreExecutionModel := executionModelForAuthSelection(opts, req.Model)
 	opts = ensureRequestedModelMetadata(opts, routeModel)
 	homeMode := m.HomeEnabled()
+	if homeMode && m.FamilyRoutingEnabled() {
+		return nil, familyRequestError("family_home_incompatible", "family routing requires the local Codex auth manager", http.StatusConflict)
+	}
 	homeAuthCount := 1
 	tried := make(map[string]struct{})
 	if !homeMode {
@@ -827,6 +858,7 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 	attempted := make(map[string]struct{})
 	var lastErr error
 	var upstreamErr error
+	familyReselections := 0
 	var roundTiming homeRetryRoundTiming
 	for {
 		allowSameAuthRetry := homeMode && homeSameAuthRetryPending && lastHomeAuthID != "" && homeSameAuthRetries[lastHomeAuthID] == 0
@@ -1035,6 +1067,12 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 			pooled = false
 		}
 		streamResult, errStream := m.executeStreamWithModelPool(execCtx, executor, auth, provider, execReq, execOpts, routeModel, streamExecutionModel, models, pooled, aliasResult, routing, !homeMode || selection != nil, selection != nil)
+		if retryFamilySelection(errStream, auth.ID, opts, tried, attempted, &familyReselections) {
+			continue
+		}
+		if isFamilyReselect(errStream) {
+			return nil, errStream
+		}
 		if errStream != nil {
 			if hasUpstreamExecutionAttempt(errStream) {
 				upstreamErr = errStream

@@ -214,7 +214,7 @@ quota-exceeded:
 
 # Routing strategy for selecting credentials when multiple match.
 routing:
-  strategy: "round-robin" # round-robin (default), weighted-round-robin, fill-first
+  strategy: "round-robin" # round-robin (default), weighted-round-robin, fill-first, family-balanced
   # weighted-round-robin uses each credential's integer weight (default 1, maximum 1,000,000).
   # Non-positive weights exclude the credential while this strategy is active.
   # For OAuth/file credentials, add a top-level numeric "weight" field to the auth JSON.
@@ -236,6 +236,21 @@ routing:
   # for maximum parallel concurrency.
   # Ignored when routing.session-affinity is false.
   session-affinity-subagents: true
+
+  # Opt-in Codex family routing ignores numeric priority when assigning independent
+  # root families. Descendants keep one account across models and service tiers.
+  # Confirmed base weekly exhaustion excludes an account before assignment/attempt.
+  # Requires native Session-Id/Thread-Id identity and the shared quota monitor.
+  # See docs/family-routing.md before enabling, especially Widget compatibility.
+  # Family mode enables its own affinity regardless of the legacy knobs above.
+  # family:
+  #   state-file: "" # default: .<config filename>.family-routing-v1.json beside config
+  #   max-concurrent-per-account: 4 # operator limit, not a measured provider quota
+  #   max-queued-per-account: 32
+  #   admission-timeout: "2m" # acquisition only; never an upstream stream timeout
+  #   idle-retention: "720h" # 30 days; active/queued families are retained
+  #   max-families: 16384
+  #   max-members: 65536
 
 # Codex provider behavior.
 codex:

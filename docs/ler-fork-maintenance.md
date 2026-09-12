@@ -41,6 +41,10 @@ in [`codex-client-oauth-access.md`](codex-client-oauth-access.md).
    - Clears in-memory bindings without changing auth files, priority metadata, routing config, or routing strategy.
    - Linearizes reset against credential selection while allowing already-selected provider calls to continue.
    - Makes each affected session's next request evaluate the current highest available priority tier.
+5. Opt-in Codex family routing.
+   - Allocates independent families across all eligible priority ranks and keeps descendants together across models and tiers.
+   - Excludes confirmed base weekly exhaustion before assignment/attempt, with bounded durable membership and fair account admission.
+   - Serializes guarded legacy Widget automation against mode activation; see [`family-routing.md`](family-routing.md) for the configuration, reset-redemption limit, integration order and rollback contract.
 
 Each customization requires focused regression tests. A clean merge without passing behavior tests is not acceptance.
 
@@ -53,6 +57,8 @@ The post-persistence runtime update must preserve those fresh credentials even w
 Acceptance includes the fake callback/save/runtime workflow with and without the post-persistence hydration hook, matching persisted/runtime credential fields, a usable request token and valid expiry, plus the existing wrong-account and unsupported-target zero-mutation cases. A reported OAuth success is not proof of a fresh quota observation; live acceptance still requires the real account's usage read under the shared scheduler and its existing cooldowns.
 
 ## Session-affinity reset contract
+
+The following describes legacy mode. In `family-balanced` mode, the same endpoints expose family diagnostics and reset durable assignments while preserving membership; the precise extension and conditional-write guard are documented in [`family-routing.md`](family-routing.md).
 
 The authenticated management API owns the recurring "apply priorities, then rebind sessions" operation:
 

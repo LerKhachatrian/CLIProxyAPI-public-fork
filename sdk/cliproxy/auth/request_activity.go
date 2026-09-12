@@ -143,7 +143,15 @@ func (s *requestActivityScope) finish() {
 }
 
 func executeWithRequestActivity(ctx context.Context, executor ProviderExecutor, a *Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
+	ctx, release, errAdmission := admitFamilyRequest(ctx, a, opts)
+	if errAdmission != nil {
+		return cliproxyexecutor.Response{}, errAdmission
+	}
+	defer release()
 	ctx, finish := observeRequestActivity(ctx, a)
 	defer finish()
+	if errGuard := cliproxyexecutor.CheckUpstreamAttempt(ctx); errGuard != nil {
+		return cliproxyexecutor.Response{}, errGuard
+	}
 	return executor.Execute(ctx, a, req, opts)
 }

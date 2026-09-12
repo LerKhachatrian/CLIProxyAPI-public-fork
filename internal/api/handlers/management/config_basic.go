@@ -155,17 +155,24 @@ func (h *Handler) PutConfigYAML(c *gin.Context) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	releaseRouting := h.authManager.ReserveFamilyRoutingConfig(cfg.Routing.Strategy)
 	if WriteConfig(h.configFilePath, body) != nil {
+		releaseRouting()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "write_failed", "message": "failed to write config"})
 		return
 	}
 	// Reload into handler to keep memory in sync
 	newCfg, err := config.LoadConfig(h.configFilePath)
 	if err != nil {
+		releaseRouting()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "reload_failed", "message": err.Error()})
 		return
 	}
 	h.cfg = newCfg
+	h.authManager.SetRoutingFamilyConfigured(newCfg.Routing.Strategy)
+	snapshot := h.reloadSnapshotConfigLocked()
+	snapshot.releaseRouting = releaseRouting
+	h.reloadConfigAfterManagementSaveAsync(c.Request.Context(), snapshot)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "changed": []string{"config"}})
 }
 
@@ -303,6 +310,8 @@ func normalizeRoutingStrategy(strategy string) (string, bool) {
 		return "weighted-round-robin", true
 	case "fill-first", "fillfirst", "ff":
 		return "fill-first", true
+	case "family-balanced":
+		return "family-balanced", true
 	default:
 		return "", false
 	}
@@ -330,8 +339,13 @@ func (h *Handler) PutRoutingStrategy(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid strategy"})
 		return
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	previous := h.cfg.Routing.Strategy
 	h.cfg.Routing.Strategy = normalized
-	h.persist(c)
+	if !h.persistLocked(c) {
+		h.cfg.Routing.Strategy = previous
+	}
 }
 
 // Proxy URL

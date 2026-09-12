@@ -602,7 +602,8 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 		// A connection-scoped continuation cannot rotate credentials in place. Suppress
 		// credential errors and make the client replay the full turn on a new socket.
 		replayPinnedAuthFailure := func(errMsg *interfaces.ErrorMessage) bool {
-			return nativeWebsocketPassthrough && requestRequiresCurrentUpstreamWebsocket && pinnedAuthAttempted &&
+			familyRebind := pinnedAuthID != "" && errMsg != nil && coreauth.IsFamilyReselectError(errMsg.Error)
+			return nativeWebsocketPassthrough && requestRequiresCurrentUpstreamWebsocket && (pinnedAuthAttempted || familyRebind) &&
 				shouldReplayResponsesWebsocketPinnedAuthFailure(errMsg)
 		}
 
@@ -633,10 +634,11 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 			return
 		}
 		if forwardErrMsg != nil {
-			if pinnedAuthAttempted && shouldReleaseResponsesWebsocketPinnedAuth(forwardErrMsg) {
+			replayRequired := replayPinnedAuthFailure(forwardErrMsg)
+			if (pinnedAuthAttempted || pinnedAuthID != "" && coreauth.IsFamilyReselectError(forwardErrMsg.Error)) && shouldReleaseResponsesWebsocketPinnedAuth(forwardErrMsg) {
 				forgetPinnedAuth()
 			}
-			if replayPinnedAuthFailure(forwardErrMsg) {
+			if replayRequired {
 				replayErr := responsesWebsocketHTTPReplayRequiredError()
 				wsTerminateErr = replayErr
 				matched, errClose := writer.closeForUpstreamError(replayErr)

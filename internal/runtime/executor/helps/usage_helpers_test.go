@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -956,4 +958,39 @@ type TestUsageExecutor struct{}
 
 func (TestUsageExecutor) Identifier() string {
 	return "test-provider"
+}
+
+func TestUsageTransportAdmissionGuardPrecedesEachHTTPAttempt(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { calls.Add(1); w.WriteHeader(http.StatusNoContent) }))
+	defer server.Close()
+	refusal := errors.New("synthetic family changed")
+	allowed := false
+	ctx := cliproxyexecutor.WithUpstreamAttemptGuard(t.Context(), func() error {
+		if !allowed {
+			return refusal
+		}
+		return nil
+	})
+	transport := usageTTFTRoundTripper{base: http.DefaultTransport, reporter: &UsageReporter{}}
+	for _, permit := range []bool{false, true, false} {
+		allowed = permit
+		attempt := cliproxyexecutor.WithUpstreamAttemptTracker(ctx)
+		req, err := http.NewRequestWithContext(attempt, http.MethodGet, server.URL, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := transport.RoundTrip(req)
+		if permit {
+			if err != nil || resp == nil || !cliproxyexecutor.UpstreamAttempted(attempt) {
+				t.Fatalf("allowed HTTP attempt: %v", err)
+			}
+			_ = resp.Body.Close()
+		} else if !errors.Is(err, refusal) || !cliproxyexecutor.IsUpstreamAttemptGuardError(err) || cliproxyexecutor.UpstreamAttempted(attempt) {
+			t.Fatalf("refused HTTP attempt crossed transport: %v", err)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("provider received %d HTTP attempts, want 1", calls.Load())
+	}
 }

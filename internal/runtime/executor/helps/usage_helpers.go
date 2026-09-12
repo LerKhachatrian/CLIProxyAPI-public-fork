@@ -485,6 +485,9 @@ type usageTTFTRoundTripper struct {
 }
 
 func (t usageTTFTRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if errGuard := cliproxyexecutor.CheckUpstreamAttempt(req.Context()); errGuard != nil {
+		return nil, errGuard
+	}
 	cliproxyexecutor.MarkUpstreamAttempt(req.Context())
 	t.reporter.StartResponseTTFT()
 	resp, errRoundTrip := t.base.RoundTrip(req)

@@ -2,6 +2,7 @@ package cliproxy
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ type routingRuntimeState struct {
 	sessionAffinity          bool
 	sessionAffinityTTL       time.Duration
 	sessionAffinitySubagents bool
+	family                   coreauth.FamilyRoutingConfig
 }
 
 func normalizedRoutingRuntimeState(cfg *config.Config) routingRuntimeState {
@@ -46,8 +48,22 @@ func normalizedRoutingRuntimeState(cfg *config.Config) routingRuntimeState {
 		state.strategy = "weighted-round-robin"
 	case "fill-first", "fillfirst", "ff":
 		state.strategy = "fill-first"
+	case "family-balanced":
+		state.strategy = "family-balanced"
 	}
 	state.sessionAffinity = cfg.Routing.SessionAffinity
+	if state.strategy == "family-balanced" {
+		state.sessionAffinity = true
+		state.family = coreauth.NormalizeFamilyRoutingConfig(coreauth.FamilyRoutingConfig{
+			StatePath:               strings.TrimSpace(cfg.Routing.Family.StateFile),
+			MaxConcurrentPerAccount: cfg.Routing.Family.MaxConcurrentPerAccount,
+			MaxQueuedPerAccount:     cfg.Routing.Family.MaxQueuedPerAccount,
+			AdmissionTimeout:        parseFamilyDuration(cfg.Routing.Family.AdmissionTimeout),
+			IdleRetention:           parseFamilyDuration(cfg.Routing.Family.IdleRetention),
+			MaxFamilies:             cfg.Routing.Family.MaxFamilies,
+			MaxMembers:              cfg.Routing.Family.MaxMembers,
+		})
+	}
 	if ttl := strings.TrimSpace(cfg.Routing.SessionAffinityTTL); ttl != "" {
 		if parsed, errParse := time.ParseDuration(ttl); errParse == nil && parsed > 0 {
 			if parsed < time.Second {
@@ -58,6 +74,27 @@ func normalizedRoutingRuntimeState(cfg *config.Config) routingRuntimeState {
 	}
 	if state.sessionAffinity && cfg.Routing.SessionAffinitySubagents != nil {
 		state.sessionAffinitySubagents = *cfg.Routing.SessionAffinitySubagents
+	}
+	return state
+}
+
+func parseFamilyDuration(value string) time.Duration {
+	duration, _ := time.ParseDuration(strings.TrimSpace(value))
+	return duration
+}
+
+func (state routingRuntimeState) withConfigPath(configPath string) routingRuntimeState {
+	if state.strategy != "family-balanced" || configPath == "" {
+		return state
+	}
+	path, err := filepath.Abs(configPath)
+	if err != nil {
+		return state
+	}
+	if state.family.StatePath == "" {
+		state.family.StatePath = filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".family-routing-v1.json")
+	} else if !filepath.IsAbs(state.family.StatePath) {
+		state.family.StatePath = filepath.Join(filepath.Dir(path), state.family.StatePath)
 	}
 	return state
 }
@@ -74,10 +111,15 @@ func newRoutingSelector(state routingRuntimeState) coreauth.Selector {
 	}
 	if state.sessionAffinity {
 		subagents := state.sessionAffinitySubagents
+		var family *coreauth.FamilyRoutingConfig
+		if state.strategy == "family-balanced" {
+			family = &state.family
+		}
 		selector = coreauth.NewSessionAffinitySelectorWithConfig(coreauth.SessionAffinityConfig{
 			Fallback:         selector,
 			TTL:              state.sessionAffinityTTL,
 			SubagentAffinity: &subagents,
+			Family:           family,
 		})
 	}
 	return selector
@@ -113,6 +155,7 @@ func (s *Service) commitConfigUpdate(newCfg *config.Config) configCommit {
 		log.WithError(errValidate).Warn("rejected config update with invalid credential weights")
 		return configCommit{}
 	}
+	s.coreManager.SetRoutingFamilyConfigured(newCfg.Routing.Strategy)
 
 	s.cfgMu.Lock()
 	s.cfg = newCfg
@@ -212,9 +255,16 @@ func (s *Service) applyManagerConfig(ctx context.Context, commit configCommit) b
 	if errContext := ctx.Err(); errContext != nil {
 		return false
 	}
-	routingState := normalizedRoutingRuntimeState(commit.cfg)
+	routingState := normalizedRoutingRuntimeState(commit.cfg).withConfigPath(s.configPath)
 	if s.appliedRoutingState == nil || *s.appliedRoutingState != routingState {
-		s.coreManager.SetSelector(newRoutingSelector(routingState))
+		if routingState.strategy == "family-balanced" && s.coreManager.FamilyRoutingEnabled() {
+			if !s.coreManager.ReconfigureFamilyRouting(routingState.family) {
+				log.Warn("family routing state path cannot change during hot reload; restart with the intended state file")
+				return false
+			}
+		} else {
+			s.coreManager.SetSelector(newRoutingSelector(routingState))
+		}
 		s.appliedRoutingState = &routingState
 	}
 	s.applyRetryConfig(commit.cfg)

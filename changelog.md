@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-12 19:56:31 -04:00 - add opt-in durable Codex family routing
+
+- Session ID: `01a097e8-2311-7e52-938b-1b26fc227356`; feature baseline `c59acd149e23b676911512ca3f2eadd0a5451361`, upstream ancestor `5208aec703b5ce7e3445f6e9d91cc13b3e78003a` / `v7.2.151`.
+- Added `family-balanced` inside the existing auth owner: independent roots rotate across all eligible priority ranks, while transitive descendants retain one account across models, tiers, resumes and context resets. Typed quota projections preserve confirmed base weekly exhaustion; bounded hashed state becomes durable before fair per-account admission. Cancellation, reset/failover generations and memory-only HTTP/WebSocket attempt guards prevent stale queued or pinned work from escaping its assignment.
+- Extended the existing management affinity contract with sanitized family diagnostics and durable assignment reset. Exact guarded legacy Widget writes serialize against configured, pending and active family mode; old automation must be quiesced until the guarded Widget is installed. Configuration, ownership, compatibility, effective-strategy rollback and state retention are documented in `docs/family-routing.md`.
+- The post-output WebSocket negative control reproduced both error-channel and error-frame replay callbacks after a payload. The forwarder now requests full replay only before its first successful downstream payload write. Focused identity, quota, fairness, cancellation, persistence, admission, transport, lifecycle and management regressions pass, including twenty roots distributed equally across four safe accounts with zero attempts on six weekly-exhausted accounts.
+- Final normal Windows `go test -count=1 -timeout 4m -p 2 ./...` passes with Go 1.26.2. Eight complete affected packages pass Linux race detection with Go 1.26.3. The initial Windows timing failure was independently reproduced and repaired in the preceding test-only commit; the diagnostic-source package-discovery mistake was corrected by retaining its bytes under a non-Go extension. Initial failures and bounded diagnostic results remain retained outside Git rather than being relabeled as successful runs.
+- This is a side-branch review candidate. Exact-binary combined CLIProxy/Widget/native staging is a separate acceptance step; canonical merge, installation and live family-mode activation remain gated by the operator's green light. Banked reset redemption does not yet supply trustworthy early-release proof, so a confirmed weekly exclusion lasts until its recorded reset. No live priorities, accounts, configuration, affinity or protected service were changed by this implementation.
+
 ## 2026-09-12 19:55:02 -04:00 - give media TTFT fixtures measurable latency
 
 - Session ID: `01a097e8-2311-7e52-938b-1b26fc227356`

@@ -386,6 +386,9 @@ func (m *Manager) SetSelector(selector Selector) {
 	if selector == nil {
 		selector = &RoundRobinSelector{}
 	}
+	m.attachFamilySelector(selector)
+	m.routingGuardMu.Lock()
+	defer m.routingGuardMu.Unlock()
 	m.selectorMu.Lock()
 	defer m.selectorMu.Unlock()
 
@@ -826,6 +829,13 @@ func (m *Manager) pickViaBuiltinScheduler(ctx context.Context, strategy schedule
 }
 
 func (m *Manager) pickViaPluginScheduler(ctx context.Context, scheduler PluginScheduler, provider string, providers []string, model string, opts cliproxyexecutor.Options, tried map[string]struct{}, candidates []*Auth) (*Auth, bool, error) {
+	if m.FamilyRoutingEnabled() {
+		for _, key := range append([]string{provider}, providers...) {
+			if strings.EqualFold(key, "codex") {
+				return nil, false, nil
+			}
+		}
+	}
 	if scheduler == nil || len(candidates) == 0 {
 		return nil, false, nil
 	}
@@ -1520,6 +1530,7 @@ func (m *Manager) pickNextLegacy(ctx context.Context, provider, model string, op
 	opts.Metadata[cliproxyexecutor.SessionAffinityModelMetadataKey] = selectionArgForSelector(selector, model)
 	pluginScheduler := m.pluginScheduler
 	executor, okExecutor := m.executors[provider]
+	familyMode := isFamilySelector(selector) && strings.EqualFold(provider, "codex")
 	if !okExecutor {
 		m.mu.RUnlock()
 		return nil, nil, &Error{Code: "executor_not_found", Message: "executor not registered"}
@@ -1552,11 +1563,17 @@ func (m *Manager) pickNextLegacy(ctx context.Context, provider, model string, op
 		}
 		candidates = append(candidates, candidate)
 	}
-	if len(candidates) == 0 {
+	if len(candidates) == 0 && !familyMode {
 		m.mu.RUnlock()
 		return nil, nil, &Error{Code: "auth_not_found", Message: "no auth available"}
 	}
 	available, selectorAuths, errAvailable := m.availableAuthsForSelector(selector, candidates, provider, model, time.Now())
+	if familyMode {
+		// The family owner validates every tier and exhausted/blocked binding,
+		// including an empty pin-filtered set that requires a complete replay.
+		selectorAuths = cloneAuthSlice(candidates)
+		available, errAvailable = selectorAuths, nil
+	}
 	if errAvailable != nil {
 		m.mu.RUnlock()
 		m.warnLogAuthUnavailable(ctx, []string{provider}, model, opts, tried, errAvailable)
@@ -1847,6 +1864,12 @@ func (m *Manager) pickNextMixedLegacy(ctx context.Context, providers []string, m
 	selector := m.selector
 	opts.Metadata[cliproxyexecutor.SessionAffinityModelMetadataKey] = selectionArgForSelector(selector, model)
 	pluginScheduler := m.pluginScheduler
+	_, includesCodex := providerSet["codex"]
+	familyMode := isFamilySelector(selector) && includesCodex
+	if familyMode && len(providerSet) != 1 {
+		m.mu.RUnlock()
+		return nil, nil, "", familyRequestError("family_provider_incompatible", "family-balanced Codex requests require a Codex-only provider route", http.StatusConflict)
+	}
 	candidates := make([]*Auth, 0, len(m.auths))
 	modelKey := strings.TrimSpace(model)
 	// Always use base model name (without thinking suffix) for auth matching.
@@ -1885,11 +1908,15 @@ func (m *Manager) pickNextMixedLegacy(ctx context.Context, providers []string, m
 		}
 		candidates = append(candidates, candidate)
 	}
-	if len(candidates) == 0 {
+	if len(candidates) == 0 && !familyMode {
 		m.mu.RUnlock()
 		return nil, nil, "", &Error{Code: "auth_not_found", Message: "no auth available"}
 	}
 	available, selectorAuths, errAvailable := m.availableAuthsForSelector(selector, candidates, "mixed", model, time.Now())
+	if familyMode {
+		selectorAuths = cloneAuthSlice(candidates)
+		available, errAvailable = selectorAuths, nil
+	}
 	if errAvailable != nil {
 		m.mu.RUnlock()
 		m.warnLogAuthUnavailable(ctx, providers, model, opts, tried, errAvailable)
@@ -1904,7 +1931,11 @@ func (m *Manager) pickNextMixedLegacy(ctx context.Context, providers []string, m
 	}
 	if !handled {
 		selectorCtx := withWeightedSelectorStateModel(ctx, selector, model)
-		selected, errPick = selector.Pick(selectorCtx, "mixed", selectionArgForSelector(selector, model), opts, selectorAuths)
+		selectorProvider := "mixed"
+		if familyMode {
+			selectorProvider = "codex"
+		}
+		selected, errPick = selector.Pick(selectorCtx, selectorProvider, selectionArgForSelector(selector, model), opts, selectorAuths)
 		if errPick != nil {
 			if isBuiltInSelector(selector) {
 				errPick = restoreModelCooldownErrorModel(errPick, model)

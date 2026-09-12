@@ -2,9 +2,6 @@ package management
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -105,13 +102,7 @@ func (h *Handler) monitorInputs() (*codexmonitor.Coordinator, []codexmonitor.Ide
 
 func codexMonitorIdentityKey(a *coreauth.Auth) string {
 	a.EnsureIndex()
-	claims := extractCodexIDTokenClaims(a)
-	// These selected identity claims are read from the existing in-memory auth
-	// owner, hashed immediately and never returned or persisted as plaintext.
-	identity, _ := json.Marshal([]any{a.ID, a.Index, a.Provider, authEmail(a),
-		a.Metadata["account_id"], a.Metadata["plan_type"], claims["chatgpt_account_id"], claims["plan_type"]})
-	digest := sha256.Sum256(identity)
-	return hex.EncodeToString(digest[:])
+	return a.CodexAccountIdentity()
 }
 
 func monitorIdentity(a *coreauth.Auth, now time.Time) codexmonitor.Identity {

@@ -1,5 +1,9 @@
 # Passive-first Codex quota monitoring
 
+## Opt-in routing projection
+
+`family-balanced` routing consumes a typed in-memory weekly/five-hour projection from this existing owner. Selection never calls `Snapshot`, opens cache files or schedules provider reads. A small sibling safety file under the monitor's existing lifetime lock retains confirmed weekly exhaustion across partial/positive observations and restart while preserving the strict legacy v1 entry format. The monitor still owns no account assignment, credential write or redemption authority. See [`family-routing.md`](family-routing.md) for exact scope, reset-redemption limitations and rollback behavior.
+
 ## Initial reset inventory — deployed and accepted
 
 Session `01a077c3-26f5-7242-9d03-424a32cafc47`, 2026-09-09. A never-checked reset bank previously received a random first deadline up to 24 hours away, so a correct partial total could stay incomplete until the next day. This is a scheduling problem, not lost credits or incorrect summation. With reset Auto enabled, new missing inventory is immediately eligible, and existing strict-v1 entries with no bank and no prior attempt have their future bootstrap deadlines brought forward once. Snapshot GETs remain local-only; the next ordinary scheduling step may claim one read.

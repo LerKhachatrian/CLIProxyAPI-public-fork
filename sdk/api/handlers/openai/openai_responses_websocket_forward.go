@@ -42,6 +42,7 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesWebsocket(
 	}
 	toolCacheTurn := opts.toolCacheTurn
 	completed := false
+	downstreamPayloadWritten := false
 	completedOutput := []byte("[]")
 	completedResponseID := ""
 	outputItemsByIndex := make(map[int64][]byte)
@@ -88,7 +89,7 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesWebsocket(
 			}
 
 			h.LoggingAPIResponseError(context.WithValue(context.Background(), "gin", c), errMsg)
-			if opts.suppressError != nil && opts.suppressError(errMsg) {
+			if !downstreamPayloadWritten && opts.suppressError != nil && opts.suppressError(errMsg) {
 				cancel(errMsg.Error)
 				return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, nil
 			}
@@ -155,7 +156,7 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesWebsocket(
 					if h != nil {
 						h.LoggingAPIResponseError(context.WithValue(context.Background(), "gin", c), payloadErrMsg)
 					}
-					if opts.suppressError != nil && opts.suppressError(payloadErrMsg) {
+					if !downstreamPayloadWritten && opts.suppressError != nil && opts.suppressError(payloadErrMsg) {
 						cancel(payloadErrMsg.Error)
 						return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), payloadErrMsg, nil
 					}
@@ -203,6 +204,9 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesWebsocket(
 					cancel(errWrite)
 					return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), nil, errWrite
 				}
+				// A pinned credential failure may request a full replay only
+				// before this turn has emitted any downstream response payload.
+				downstreamPayloadWritten = true
 			}
 		}
 	}

@@ -98,6 +98,24 @@ The post-output WebSocket regression fails against the old forwarder on both err
 
 This branch is a review candidate. Canonical integration, installation, family-mode activation and protected live-port replacement require the operator's explicit green light. Preserve exact committed source, binary SHA-256, clean build metadata and the pre-change rollback artifact. Do not confuse side-branch publication or a temporary staged process with installed deployment.
 
+### Repeatable binary staging
+
+Use the existing repository integration-test boundary, `test/family_routing_staging.py`, to verify a candidate after routing or transport changes. This is a bounded, on-demand Windows command with synthetic loopback accounts; it adds no installed service. Its Python environment needs `aiohttp`, `PyYAML`, `websockets` and the Widget checkout's dependencies for the optional real-gateway checks.
+
+```text
+python -B -X utf8 test/family_routing_staging.py --candidate <absolute-router-exe> --output <fresh-absolute-evidence-directory> --core <absolute-codex-exe> --catalog <absolute-model-catalog-json> --widget-root <absolute-widget-checkout>
+```
+
+The command accepts only staging ports 48318/48319 and refuses the installed live image, occupied ports, reused output, relative or missing inputs, an unmatched core/catalog pair, a missing code-mode companion and optimized Python. Native and Widget inputs are optional, but omitting them leaves those integration checks unexecuted. `--calibrate-only` verifies the synthetic upstream and optional native transport against a baseline; it is never family-routing acceptance. Check the output-volume disk budget before each run and retain failed receipts instead of overwriting evidence.
+
+Full execution covers twenty roots across four eligible accounts, forty descendants across models/tiers, guarded legacy writes and a real Widget mode-change race, native WebSocket create/cold resume, abrupt router restart, membership-preserving reset, four active plus 32 queued requests, overflow and cancellation, whole-family failover, HTTP partial-output handling, pinned WebSocket generation changes and legacy rollback. The confirmed weekly-exhausted fixture receives no family-mode upstream attempt. The intentional legacy seeding phase contacts all five fake accounts to establish their observations.
+
+Receipts contain candidate, helper and supplied input hashes, phase evidence, synthetic request attribution and cleanup status. Successful assistant acknowledgments come from actual responses. Exit 0 requires the requested checks and cleanup to pass; malformed input fails before launch, while execution failures retain `receipt.json` and return nonzero. A second run requires a new output directory. All subprocesses are hidden and owned, native commands have a 70-second deadline, startup has a 20-second deadline, and request/event counts and queues are bounded.
+
+The post-output WebSocket check accepts the existing terminal path's TCP close without a close frame (observed as 1006), while rejecting a 1012 replay instruction. It still requires exactly one upstream attempt, one delivered text delta and no completed response. This proves server behavior; it does not prove an arbitrary native client's automatic reconnect policy. The first candidate run exposed an incorrect verifier assumption that every terminal close carried a frame; the source-confirmed correction and successful rerun retain that failed evidence.
+
+Candidate source `37c7c94cb952c18f3dc388beafbbdb67845d14f6`, executable SHA-256 `4a9027cdd7f6ba6fb6ce7743cccd0989faf3ec78c1c34422c6bfa173369d9afe`, passed the full combined staging contract with native core/companion and guarded Widget inputs. The build records the exact revision and `vcs.modified=false`. The tested Go toolchains require directory-shaped `.git` metadata and omit native provenance in a linked worktree, even with `-buildvcs=true`; the accepted build therefore used an ignored generated snapshot whose 1,505 files matched every committed blob before and after compilation. The initially unstamped executable remains rejected. Build input materialization does not relocate the task or modify its assigned source checkout.
+
 ## Rollback
 
 1. Quiesce incompatible legacy automatic routing before changing modes or Widget versions.

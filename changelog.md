@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-12 20:14:36 -0400 - verify exact family-routing candidate and publish synthetic staging
+
+- Session ID: `01a0940d-2f05-7403-97db-dcaca425a44e`. Production source is `37c7c94cb952c18f3dc388beafbbdb67845d14f6`; candidate SHA-256 `4a9027cdd7f6ba6fb6ce7743cccd0989faf3ec78c1c34422c6bfa173369d9afe` records the exact native revision and `vcs.modified=false`. All 1,505 generated build-snapshot inputs match committed blobs; the initially unstamped linked-worktree build remains rejected.
+- Published `test/family_routing_staging.py` in the existing integration-test owner, with documented dependencies, explicit optional coverage, fixed loopback ports, fresh output, bounded hidden processes and failure-preserving receipts. The repository command passed all 15 combined phases with 141 synthetic upstream requests and zero family-mode attempts on the confirmed weekly-exhausted account.
+- Exact-binary checks passed twenty roots evenly across four unique-priority accounts, forty transitive descendants across models/tiers, actual Widget gateway preflight/manual edits/mode-race rejection, native WebSocket root-child-grandchild create and cold resume, abrupt router restart, durable reset, four active plus 32 queued requests, overflow/cancellation, whole-family failover, partial-output no replay, pinned generation change and supported legacy rollback. Every owned process stopped and both staging ports were released.
+- The first combined run exposed a verifier assumption: the existing credential/quota terminal path closes TCP without a WebSocket close frame. Source inspection and the corrected rerun observed 1006 with one delivered delta, one upstream attempt and no completion; 1012 replay instructions remain rejected. The first failure, corrected run and final public-command receipt are retained separately. Native client automatic retry after a terminal disconnect remains outside this raw transport proof.
+- The published helper matches verified SHA-256 `5ce04a16f741800dabbf5f38714b16b508c566b578dcb0cf6a370f06f1798918`; public-command receipt SHA-256 is `9479eb626503020fbea1fc018ca9fa1bf337dd646afd1a54a790a9a995fc2475`. Existing input/optimization/startup-failure checks and actual public-entry success cover refusal, cleanup and discoverability. Private receipts, logs, profiles and binaries remain outside Git.
+- Normal Windows full-suite and eight affected Linux race-package results remain applicable to this documentation/test-only successor. Canonical integration, installation and live family activation remain gated by the operator's explicit green light; banked-reset early release and headed Widget acceptance retain their documented limits.
+
 ## 2026-09-12 19:56:31 -04:00 - add opt-in durable Codex family routing
 
 - Session ID: `01a097e8-2311-7e52-938b-1b26fc227356`; feature baseline `c59acd149e23b676911512ca3f2eadd0a5451361`, upstream ancestor `5208aec703b5ce7e3445f6e9d91cc13b3e78003a` / `v7.2.151`.
